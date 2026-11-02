@@ -11,8 +11,7 @@
 - **多监视框**：框选屏幕任意区域，或直接选择一个窗口（窗口移动/重启自动跟随、句柄失效按标题自动重绑），每秒截图、预览实时。
 - **画面变化唤起 AI**：变化度超阈值 + 连续两拍确认 + 冷却时间，防误触；监控与聊天共用同一个会话，你在聊天里交代的规则 AI 监控时也会遵守。
 - **绿格定位 + 先瞄后打**：截图叠加绿色 10×10 定位格；大目标一步点击，小图标先"瞄准"（只填 row/col）看格子放大图、按刻度读准 ox/oy 再点，专治点不准。
-- **文字点名点击**：click_text 用 Windows 自带本地 OCR（离线、毫秒级）按文字直接点击，带文字的目标点名即中。
-- **17 个工具**：点击/双击/右键/拖拽/滚动/打字/按键/清空/读焦点/OCR 读屏/AI 读屏/等待/记忆四件套……每个工具的详细使用说明随工具定义自动注入给模型。
+- **15 个工具**：点击/双击/右键/拖拽/滚动/打字/按键/清空/读焦点/AI 读屏/等待/记忆四件套……每个工具的详细使用说明随工具定义自动注入给模型。
 - **markdown 记忆库**：按主题文件夹分类保存原文，搜索/列出/读取，AI 自己决定存什么、去哪找。
 - **会话管理**：多会话、新建、改名、删除（真删）、上下文超预算自动压缩成滚动摘要；会话存储位置可改，旧文件自动迁移。
 - **模型可换**：首页「设置」弹窗改模型名/接口地址/密钥，带「测试连接」；任何 OpenAI 兼容接口都能接。
@@ -32,10 +31,8 @@
 ### 2. 安装依赖
 
 ```
-pip install pillow pywin32 openai pyperclip winrt-runtime winrt-Windows.Media.Ocr winrt-Windows.Globalization winrt-Windows.Graphics.Imaging winrt-Windows.Storage.Streams
+pip install pillow pywin32 openai pyperclip
 ```
-
-（winrt 系列是本地 OCR，建议用国内镜像装。）
 
 ### 3. 配置
 
@@ -86,8 +83,7 @@ pip install pillow pywin32 openai pyperclip winrt-runtime winrt-Windows.Media.Oc
 ### 一次典型的点击（先瞄后打）
 
 1. 大按钮/文字目标：AI 直接给 row/col/ox/oy 一步点击；
-2. 小图标：AI 先只填 row/col → 程序回传该格放大图（横轴=ox、纵轴=oy 的刻度图）→ AI 读准偏移后填全参数真正点击；
-3. 带文字的目标优先 click_text 按文字点名。
+2. 小图标：AI 先只填 row/col → 程序回传该格放大图（横轴=ox、纵轴=oy 的刻度图）→ AI 读准偏移后填全参数真正点击。
 
 绿格规则：绿色 10×10 网格不标数字，row 从上往下数 1~10、col 从左往右数 1~10；目标压线时归邻格并把偏移补到 0/100；贴边时对应 row1/col1/row10/col10。
 
@@ -122,7 +118,7 @@ pip install pillow pywin32 openai pyperclip winrt-runtime winrt-Windows.Media.Oc
 
 ```
 观域/
-├─ bot.py                全部后端：配置/GLM/记忆/键鼠/OCR/监视框/工具/会话/监控/HTTP
+├─ bot.py                全部后端：配置/GLM/记忆/键鼠/监视框/工具/会话/监控/HTTP
 ├─ pick.py               全屏框选子进程（tkinter 拖矩形）
 ├─ ui.html               前端（原生 HTML/JS，无构建）
 ├─ start.bat             启动脚本
@@ -145,8 +141,7 @@ pip install pillow pywin32 openai pyperclip winrt-runtime winrt-Windows.Media.Oc
 ## 常见问题
 
 - **端口被占**：8770 被旧进程占用时程序会直接报错退出，关掉旧命令行窗口再启动。
-- **点不准小图标**：这是视觉模型的正常现象，工具已内置"先瞄后打"；也可在提示词里引导 AI 优先用 click_text。
-- **OCR 不识别**：确认系统装了中文语言包（设置→时间和语言→语言）。
+- **点不准小图标**：这是视觉模型的正常现象，工具已内置"先瞄后打"；也可在提示词里引导 AI 优先用键盘路径。
 - **微信窗口被挡**：监视框截的是屏幕像素，被其他窗口遮住的部分 AI 看不见。
 - **换模型**：首页「设置」里改，注意视觉能力（要能看图）。
 - **删除会话/记忆**：会话删除是真删；记忆文件删除前会确认。

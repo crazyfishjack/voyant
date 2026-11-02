@@ -8,7 +8,6 @@ AI 可使用鼠标/键盘工具操作框内内容，并用 markdown 文件管理
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import ctypes
 import io
@@ -372,142 +371,6 @@ def _hit_window_title(sx: int, sy: int) -> str:
         return (win32gui.GetWindowText(root) or "?")[:30]
     except Exception:
         return "?"
-
-
-# ================================================================ 本地 OCR（Windows 自带引擎，离线毫秒级）
-_ocr_lock = threading.Lock()
-_OCR_DEPS_HINT = ("本地 OCR 缺少依赖，请执行: pip install winrt-runtime "
-                  "winrt-Windows.Media.Ocr winrt-Windows.Globalization "
-                  "winrt-Windows.Graphics.Imaging winrt-Windows.Storage.Streams")
-
-
-def _ocr_lines(image_bytes: bytes) -> list[tuple[str, float, float, float, float]]:
-    """Windows 自带 OCR：返回 [(文字, x, y, w, h), ...]，坐标为图像像素。"""
-    from winrt.windows.media.ocr import OcrEngine
-    from winrt.windows.globalization import Language
-    from winrt.windows.storage.streams import InMemoryRandomAccessStream, DataWriter
-    from winrt.windows.graphics.imaging import BitmapDecoder
-
-    async def _run():
-        engine = OcrEngine.try_create_from_language(Language("zh-CN"))
-        if engine is None:
-            engine = OcrEngine.try_create_from_user_profile_languages()
-        if engine is None:
-            raise RuntimeError("系统缺少中文 OCR 语言包（设置→时间和语言→语言 中添加中文）")
-        stream = InMemoryRandomAccessStream()
-        writer = DataWriter(stream)
-        writer.write_bytes(image_bytes)
-        await writer.store_async()
-        await writer.flush_async()
-        decoder = await BitmapDecoder.create_async(stream)
-        bitmap = await decoder.get_software_bitmap_async()
-        result = await engine.recognize_async(bitmap)
-        out = []
-        for line in result.lines:
-            try:
-                xs = [w.bounding_rect.x for w in line.words]
-                ys = [w.bounding_rect.y for w in line.words]
-                xe = [w.bounding_rect.x + w.bounding_rect.width for w in line.words]
-                ye = [w.bounding_rect.y + w.bounding_rect.height for w in line.words]
-                out.append((line.text, min(xs), min(ys),
-                            max(xe) - min(xs), max(ye) - min(ys)))
-            except Exception:
-                continue
-        return out
-
-    with _ocr_lock:
-        return asyncio.run(_run())
-
-
-def _ocr_box_anchors(box: dict) -> list[dict]:
-    """全分辨率、无网格、无损截取监视框并 OCR。
-
-    返回锚点列表：文字 + 屏幕中心坐标 + 框内 0~1000 坐标。
-    注意：必须用干净的全分辨率原图，网格叠加图会干扰识别。
-    截图瞬间若遇窗口拖动/动画会识别成乱码，故带质量重试（取汉字最多的那次）。
-    """
-    rect = resolve_rect(box)
-    if not rect:
-        raise ValueError(f"框「{box['name']}」当前不可见（已最小化或已关闭）")
-    box["rect"] = rect
-    l, t, w, h = rect
-
-    def cjk_count(anchors):
-        return sum(sum(1 for ch in a["text"] if ord(ch) > 0x2E7F)
-                   for a in anchors)
-
-    best, best_n = [], -1
-    for attempt in range(3):
-        try:
-            img = ImageGrab.grab(bbox=(l, t, l + w, t + h),
-                                 all_screens=True).convert("RGB")
-            buf = io.BytesIO()
-            img.save(buf, "PNG")
-            anchors = []
-            for text, x, y, ww, hh in _ocr_lines(buf.getvalue()):
-                anchors.append({
-                    "text": text,
-                    "sx": int(l + x + ww / 2), "sy": int(t + y + hh / 2),
-                    "fx": round((x + ww / 2) / max(1, w) * 1000),
-                    "fy": round((y + hh / 2) / max(1, h) * 1000),
-                })
-        except Exception as e:
-            log_event(f"OCR 第{attempt + 1}次失败: {e}")
-            time.sleep(0.4)
-            continue
-        n = cjk_count(anchors)
-        if n > best_n:
-            best, best_n = anchors, n
-        if n >= 20:   # 质量足够，提前结束
-            break
-        time.sleep(0.4)
-    return best if best_n >= 2 else []
-
-
-def _norm_text(s) -> str:
-    return re.sub(r"\s+", "", str(s or ""))
-
-
-def h_click_text(args):
-    """按文字精确点击：OCR 实时定位，点名即中，天然免疫画面时间差与遮挡。"""
-    text = _norm_text(args.get("text"))
-    if not text:
-        raise ValueError("text 为空")
-    box = _get_box(args)
-    try:
-        nth = max(1, int(args.get("nth", 1) or 1))
-    except (TypeError, ValueError):
-        nth = 1
-    anchors = _ocr_box_anchors(box)
-    hits = [a for a in anchors if text in _norm_text(a["text"])]
-    if not hits:
-        sample = "、".join(_norm_text(a["text"])[:10] for a in anchors[:15])
-        return (f"⚠️ 没找到文字「{text}」。当前画面可见的文字有：{sample}…"
-                "（目标可能被遮挡、不在框内，或写法不一致）")
-    if nth > len(hits):
-        return f"只找到 {len(hits)} 处「{text}」，没有第 {nth} 处"
-    a = hits[nth - 1]
-    sx, sy = a["sx"], a["sy"]
-    if CONFIG["dry_run"]:
-        return (f"[演练] 点击文字「{text}」→「{a['text'][:30]}」"
-                f"目标屏幕({sx},{sy})（未真正执行）")
-    _mouse_move_to(sx, sy)
-    time.sleep(0.08)
-    U32.mouse_event(MOUSE_LEFT_DOWN, 0, 0, 0, 0)
-    U32.mouse_event(MOUSE_LEFT_UP, 0, 0, 0, 0)
-    hit = _hit_window_title(sx, sy)
-    return f"[执行] 点击文字「{text}」 屏幕({sx},{sy}) 命中窗口=「{hit}」"
-
-
-def h_read_text(args):
-    """本地 OCR 整屏转录：确定性读出全部文字及坐标（快、准、免 API）。"""
-    box = _get_box(args)
-    anchors = _ocr_box_anchors(box)
-    if not anchors:
-        return "OCR 没有识别到任何文字（画面可能被遮挡或为纯图像）"
-    lines = [f"({a['fx']},{a['fy']}) {a['text'][:60]}" for a in anchors]
-    return ("画面文字（括号内为0~1000坐标，可直接用于点击）：\n"
-            + "\n".join(lines[:60]))
 
 
 # ================================================================ 监视框
@@ -1094,7 +957,7 @@ TOOLS: dict[str, dict] = {
     "left_click": {"desc": "点击某格子内的目标：row/col 填绿色网格的格号（行从上往下数、列从左往右数），ox/oy 填格内偏移；小图标/看不准的目标可只填 row/col 先放大瞄准，看清后再填全点击",
                    "schema": _S({"box_id": _BID, "row": _ROW, "col": _COL,
                                  "ox": _OX, "oy": _OY}, ["row", "col"]),
-                   "prompt": ("【适用】点击纯图标、无文字可点选的目标；带文字的按钮、会话名、菜单项一律改用 click_text，点名即中更准。\n"
+                   "prompt": ("【适用】点击画面上的任何目标。位置明确的大按钮走 A 一步点击；小图标、密集图标、带文字但没把握的目标走 B 两步瞄准，一次点准。\n"
                               "【两种用法（重要）】\n"
                               "A 大按钮、位置明确：一步点击——row/col/ox/oy 全填。\n"
                               "B 小图标（约 25px 以下）、一排密集图标、看不准的目标：两步走——第一步只填 row/col（不填 ox/oy）＝先瞄准，程序回传该格放大图（横轴刻度=ox、纵轴=oy，每 20 单位标数字）；第二步在放大图上读出目标中心的 ox/oy，四个参数填全再次调用＝真正点击。\n"
@@ -1112,14 +975,14 @@ TOOLS: dict[str, dict] = {
                                 "【定位】与 left_click 完全相同：row/col+ox/oy 一步点击；小图标也可只填 row/col 先瞄准该格放大、看清后再填全参数双击；一步点击附落点放大图。\n"
                                 "【调用示例】{\"row\": 1, \"col\": 2, \"ox\": 30, \"oy\": 50}。\n"
                                 "【错误处理】回执『命中窗口』异常＝点偏，按放大图修正后重试；双击后画面无反应＝目标可能不支持双击，换单击或右键试，不要加倍次数。\n"
-                                "【配合】点完看自动附上的新截图核对；文字目标优先 click_text。"),
+                                "【配合】点完看自动附上的新截图核对。"),
                      "handler": h_double},
     "right_click": {"desc": "在监视框内右键单击（定位方式同 left_click）",
                     "schema": _S({"box_id": _BID, "row": _ROW, "col": _COL,
                                   "ox": _OX, "oy": _OY}, ["row", "col"]),
                     "prompt": ("【适用】调出右键菜单的场景：复制、粘贴、删除、属性等快捷操作。\n"
                                "【定位】与 left_click 相同（row/col+ox/oy；小图标也可只填 row/col 先瞄准放大），对准要右键的对象本体。\n【调用示例】{\"row\": 4, \"col\": 2, \"ox\": 50, \"oy\": 50}。\n"
-                               "【典型流程】right_click 后画面出现菜单 → 用 click_text 点菜单项文字（如『复制』）；菜单项没文字才用 left_click 定位点。\n"
+                               "【典型流程】right_click 后画面出现菜单 → 在收到的新截图上用 left_click 点菜单项文字（小图标先瞄准）；看不清菜单项就如实说明。\n"
                                "【错误处理】菜单没弹出＝点偏了，按放大图修正后重试；弹出的菜单超出监视框看不到时如实告知用户，不要凭空猜菜单项。\n"
                                "【注意】菜单里点错可能触发删除等不可逆操作，动手前看清菜单项文字。"),
                     "handler": h_rclick},
@@ -1134,7 +997,7 @@ TOOLS: dict[str, dict] = {
                         "【错误处理】回执『命中窗口』异常＝拖偏，按放大图修正起点后重试；程序是匀速快速拖动，若目标要求极慢拖拽（如验证滑块）可能失败，如实告知用户。\n"
                         "【配合】拖完看新截图核对位置；跨窗口、超出监视框范围的拖拽做不到，不要尝试。"),
              "handler": h_drag},
-    "scroll": {"desc": "在指定位置滚动鼠标滚轮（每格约100像素；程序会自动重试并报告是否到底/到顶。读聊天记录等长内容建议配合 read_text 整屏转录，比反复滚动高效）",
+    "scroll": {"desc": "在指定位置滚动鼠标滚轮（每格约100像素；程序会自动重试并报告是否到底/到顶。读聊天记录等长内容建议配合 read_screen 整屏读取，比反复滚动高效）",
                "schema": _S({"box_id": _BID, "row": _ROW, "col": _COL,
                              "ox": _OX, "oy": _OY,
                              "direction": {"type": "string",
@@ -1145,34 +1008,15 @@ TOOLS: dict[str, dict] = {
                "prompt": ("【适用】滚动查看长内容（聊天记录、网页、列表）。direction 必填（up/down），amount 1~10，每格约 100 像素，默认 3。\n"
                           "【行为】程序先把鼠标移到 row/col/ox/oy 指定位置再滚；画面没动会自动补滚最多 3 次并在回执里说明。\n【调用示例】{\"direction\": \"down\", \"amount\": 3, \"row\": 5, \"col\": 5, \"ox\": 50, \"oy\": 50}。\n"
                           "【错误处理】回执『画面均无变化』＝已到顶/到底或该区域不可滚动，换方向试一次确认即可，不要反复滚。\n"
-                          "【配合】读长文优先 read_screen 或 read_text 一次读完；滚动前确认鼠标位置是可滚动区域，别悬停在会弹预览的元素上。"),
+                          "【配合】读长文优先 read_screen 一次读完；滚动前确认鼠标位置是可滚动区域，别悬停在会弹预览的元素上。"),
                "handler": h_scroll},
     "get_focus": {"desc": "查询当前键盘焦点在哪个窗口、是否在监视框内（输入前确认用）",
                   "schema": _S({}, []),
                   "prompt": ("【适用】任何输入文字（type_text）之前确认键盘焦点在哪，避免打错窗口。\n"
                              "【参数】无。\n【调用示例】{}。\n"
                              "【读回执】『焦点在监视框内: 是，可以安全输入』→ 可以直接 type_text；『否——文字会打进这里！』→ 必须先用点击工具点中目标输入框，再 get_focus 复查，确认『是』后才输入。\n"
-                             "【配合】标准输入流程：click_text/left_click 点输入框 → get_focus 确认 → type_text → press_keys enter。"),
+                             "【配合】标准输入流程：left_click 点输入框（小图标先瞄准）→ get_focus 确认 → type_text → press_keys enter。"),
                   "handler": h_focus},
-    "click_text": {"desc": "按文字精确点击（带字目标首选，点名即中）：text=目标上的文字，如『椒椒』『发送』『公众号』；程序用本地 OCR 实时定位精确坐标",
-                   "schema": _S({"text": {"type": "string",
-                                          "description": "目标上显示的文字"},
-                                 "nth": {"type": "integer",
-                                         "description": "同名目标选第几个，默认1"}},
-                                ["text"]),
-                   "prompt": ("【适用】首选定位方式：目标上有文字就一律用它（按钮、会话名、菜单项、链接）。本地 OCR 实时定位，比坐标点击又快又准，天然不受画面时间差影响。\n"
-                              "【参数】text 填画面上显示的原文（精确子串，如『发送』『椒椒』）；同名目标多处时用 nth 选第几个（默认第 1 个）。\n【调用示例】{\"text\": \"发送\"}；同名目标选第 2 个：{\"text\": \"椒椒\", \"nth\": 2}。\n"
-                              "【错误处理】回执『没找到文字』时会列出当前可见文字清单——照清单里的实际写法重试（OCR 可能有细微出入）；目标确实不在画面里就如实说明，不要硬点。\n"
-                              "【配合】右键弹出的菜单项优先用它点；纯图标目标才退回 left_click（自带落点放大图核对）；打开聊天也可以改按 ctrl+f 用名字搜索，不用肉眼找；点击后同样会收到新截图核对。"),
-                   "handler": h_click_text},
-    "read_text": {"desc": "本地 OCR 整屏精确转录：读出框内所有文字及其0~1000坐标（确定性、快、免估计；小字也能读）",
-                  "schema": _S({"box_id": _BID}, []),
-                  "prompt": ("【适用】需要精确原文和位置时：确认按钮文字、核对列表项、为点击取坐标。本地 OCR 逐字转录，快、准、确定性。\n"
-                             "【返回格式】每行『(fx,fy) 文字』，fx/fy 是 0~1000 的框内坐标。\n【调用示例】{}。\n"
-                             "【换算成点击参数】row = fy÷100 取整 +1；col = fx÷100 取整 +1；ox = fx 除以 100 的余数；oy = fy 除以 100 的余数。例：(235,410) → col=3、row=5、ox=35、oy=10。\n"
-                             "【错误处理】识别不到文字＝画面被遮挡或纯图像；文字明显乱码＝截图瞬间窗口在动，重调一次通常恢复。\n"
-                             "【配合】只要内容大意不要坐标时用 read_screen 更省；两者都失败时，可借 left_click 自带的落点放大图看清某个局部。"),
-                  "handler": h_read_text},
     "clear_input": {"desc": "清空当前焦点输入框（ctrl+a + delete），输错位置时先点对输入框再用它清理",
                     "schema": _S({}, []),
                     "prompt": ("【适用】输错内容或输错位置后，清空当前焦点输入框（执行 ctrl+a 全选 + delete）。\n"
@@ -1185,10 +1029,10 @@ TOOLS: dict[str, dict] = {
                                   "question": {"type": "string",
                                                "description": "想从画面里了解什么，留空=逐字转录"}},
                                  []),
-                    "prompt": ("【适用】读懂画面内容（聊天记录、长文本、列表、表格）：一次模型调用理解整屏，替代反复滚动翻找。带具体问题（question）更准更省，如『最后一条消息是谁发的、说了什么』；留空则逐字转录。\n【调用示例】{\"question\": \"最后一条消息是谁发的、说了什么\"}；逐字转录传 {}。\n"
-                               "【与 read_text 的分工】read_screen 是模型理解性阅读，擅长总结、问答、理解上下文；read_text 是本地 OCR，擅长精确原文和坐标。理解内容用 read_screen，核对界面文字细节用 read_text。\n"
+                    "prompt": ("【适用】读懂画面内容（聊天记录、长文本、列表、表格）：一次模型调用理解整屏，替代反复滚动翻找。带具体问题（question）更准更省，如『最后一条消息是谁发的、说了什么』；留空则逐字转录。\n"
+                               "【调用示例】{\"question\": \"最后一条消息是谁发的、说了什么\"}；逐字转录传 {}。\n"
                                "【错误处理】返回空或『(无内容)』＝画面不可见，检查窗口是否被遮挡/最小化。\n"
-                               "【配合】读完后要操作界面元素时，位置信息用 read_text 或 click_text 补齐。"),
+                               "【配合】这是读画面内容的主要工具；读完后要点击某个元素时，用 left_click 定位（小图标先瞄准）。"),
                     "handler": h_read_screen},
     "type_text": {"desc": "向当前焦点位置输入文字（先点击目标输入框；焦点不在框内会被安全拦截）",
                   "schema": _S({"text": {"type": "string"},
@@ -1198,7 +1042,7 @@ TOOLS: dict[str, dict] = {
                   "prompt": ("【适用】向输入框打字（聊天输入框、搜索框、表单）。原理是剪贴板粘贴，支持中文和多行。\n"
                              "【前置条件（硬性）】先用点击工具点中目标输入框；程序有焦点护栏，焦点不在监视框内会拒绝输入。\n【调用示例】{\"text\": \"你好，今晚一起吃饭吗？\"}。\n"
                              "【错误处理】回执『已阻止输入』＝当前焦点窗口不对，先点对输入框再输；确认就要输在当前焦点时才带 force:true 重试（慎用）。\n"
-                             "【配合】标准流程：click_text 点输入框 → get_focus 确认 → type_text → 用户明确要求发送时再 press_keys enter；输错了先 clear_input。"),
+                             "【配合】标准流程：left_click 点输入框（小图标先瞄准）→ get_focus 确认 → type_text → 用户明确要求发送时再 press_keys enter；输错了先 clear_input。"),
                   "handler": h_type},
     "press_keys": {"desc": "按组合键，如 ctrl+c、enter、alt+tab",
                    "schema": _S({"keys": {"type": "string",
@@ -1276,13 +1120,11 @@ def enabled_tool_schemas() -> list[dict]:
 
 # 会改变屏幕状态的工具：执行后需要立刻重新截图给 AI 核对效果
 INPUT_TOOLS = {"left_click", "double_click", "right_click", "drag",
-               "scroll", "type_text", "press_keys", "wait", "clear_input",
-               "click_text"}
+               "scroll", "type_text", "press_keys", "wait", "clear_input"}
 # 输入类工具：执行后界面渲染有延迟（约1秒），截图前需要等 settle 时间
 SETTLE_TOOLS = {"type_text", "press_keys", "clear_input"}
 # 屏幕动作类工具：一轮只执行一个，执行后立刻截图核对（sense-act-verify 标准循环）
-COORD_ACTIONS = {"left_click", "double_click", "right_click", "drag", "scroll",
-                 "click_text"}
+COORD_ACTIONS = {"left_click", "double_click", "right_click", "drag", "scroll"}
 
 
 def execute_tool(name: str, args: dict) -> str:
