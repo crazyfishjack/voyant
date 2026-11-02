@@ -1,0 +1,17 @@
+{
+  "api_key": "把你的 API Key 粘贴到这里（智谱开放平台 https://open.bigmodel.cn 申请）",
+  "base_url": "https://open.bigmodel.cn/api/paas/v4",
+  "model": "glm-5.3-flash",
+  "memory_dir": "",
+  "history_dir": "",
+  "auto_run": false,
+  "dry_run": false,
+  "check_interval": 1,
+  "change_threshold": 3,
+  "trigger_cooldown": 20,
+  "max_steps": 50,
+  "context_budget": 800000,
+  "compress_keep_recent": 8,
+  "thinking": "enabled",
+  "web_port": 8770
+}

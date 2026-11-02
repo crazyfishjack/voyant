@@ -1,0 +1,19 @@
+# 运行数据与隐私（会话/记忆/密钥）——绝不上传
+data/
+config.json
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本地杂项
+gridnew.png
+使用说明.txt
+_check*.py
+_rename.py
+_names.txt
+Git-setup.exe
+PortableGit.exe
+_gitportable/
+_hist_test/
+_mir.json 

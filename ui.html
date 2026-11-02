@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>观域 · AI 屏幕助手</title>
+<style>
+:root {
+  --page: #f4f4f4; --card: #ffffff; --ink: #111111; --sub: #777777;
+  --line: #e2e2e2; --line2: #d0d0d0; --soft: #f7f7f7;
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 14px/1.65 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  height: 100vh; display: flex; overflow: hidden;
+}
+h1 { font-size: 16px; font-weight: 700; }
+h2 { font-size: 12px; font-weight: 600; color: var(--sub);
+  letter-spacing: .08em; margin-bottom: 10px; }
+.hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
+.mut { color: var(--sub); font-size: 12px; }
+.hidden { display: none !important; }
+
+/* 左侧：监视框 */
+.side {
+  width: 340px; min-width: 300px; background: var(--card);
+  border-right: 1px solid var(--line2); display: flex; flex-direction: column;
+}
+.side-head { padding: 14px 16px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; }
+.side-head span { color: var(--sub); font-size: 12px; margin-left: 8px; }
+.side-head .btn { margin-left: auto; }
+.side-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+.row2 { display: flex; gap: 8px; margin-bottom: 10px; }
+.row2 .btn { flex: 1; }
+
+.boxcard { border: 1px solid var(--line); border-radius: 10px;
+  margin-bottom: 12px; overflow: hidden; background: #fff; }
+.boxhead { display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; background: var(--soft); border-bottom: 1px solid var(--line); }
+.boxhead b { font-size: 13px; }
+.boxhead .mut { flex: 1; text-align: right; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.preview { width: 100%; display: block; background: #eee; min-height: 60px;
+  object-fit: contain; max-height: 260px; }
+.boxfoot { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
+.boxfoot label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; }
+.err-text { color: #a33; font-size: 12px; padding: 0 10px 8px; word-break: break-all; }
+
+/* 右侧：工作台 */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 10px 16px 0;
+  background: var(--card); border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: none; padding: 8px 16px;
+  font: inherit; color: var(--sub); cursor: pointer;
+  border-bottom: 2px solid transparent; }
+.tabs button.active { color: var(--ink); font-weight: 600;
+  border-bottom-color: var(--ink); }
+.tabbody { flex: 1; overflow-y: auto; padding: 16px; }
+.tab { display: none; max-width: 860px; }
+.tab.active { display: block; }
+.card { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+
+.row { display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; font-size: 13.5px; gap: 10px; }
+.row .k { color: var(--sub); flex-shrink: 0; }
+.val { font-weight: 600; }
+
+.switch { position: relative; width: 40px; height: 22px; background: #d9d9d9;
+  border-radius: 12px; cursor: pointer; transition: background .15s; border: none;
+  flex-shrink: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: left .15s; }
+.switch.on { background: var(--ink); }
+.switch.on::after { left: 21px; }
+.switch.pause.on { background: #a33; }
+
+.btn { border: 1px solid var(--line2); background: #fff; color: var(--ink);
+  border-radius: 7px; padding: 7px 14px; font: inherit; cursor: pointer;
+  font-size: 13px; }
+.btn:hover { border-color: var(--ink); }
+.btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.dark:hover { opacity: .85; }
+.btn.danger { color: #a33; }
+.btn:disabled { opacity: .4; cursor: wait; }
+input[type="text"], input[type="number"], textarea, select {
+  border: 1px solid var(--line2); border-radius: 7px; padding: 7px 10px;
+  font: inherit; outline: none; background: #fff; }
+input:focus, textarea:focus { border-color: var(--ink); }
+input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--ink); }
+
+/* 对话 */
+.chat-log { height: 240px; overflow-y: auto; display: flex;
+  flex-direction: column; gap: 8px; padding: 2px 0 8px; }
+.bubble { max-width: 85%; padding: 8px 12px; border-radius: 10px;
+  font-size: 13.5px; white-space: pre-wrap; word-break: break-word; }
+.bubble.user { align-self: flex-end; background: var(--ink); color: #fff;
+  border-bottom-right-radius: 3px; }
+.bubble.bot { align-self: flex-start; background: var(--soft);
+  border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+.bubble.bot.err { border-color: #a33; color: #a33; }
+.msg-auto { align-self: center; background: var(--soft); border: 1px dashed var(--line);
+  color: var(--sub); font-size: 12px; border-radius: 12px; padding: 2px 12px;
+  max-width: 90%; word-break: break-all; }
+.placeholder { margin: auto; color: var(--line2); }
+.chat-input { display: flex; gap: 8px; }
+.chat-input textarea { flex: 1; resize: none; }
+
+/* 大脑 */
+textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
+  font: 12.5px/1.7 Consolas, "Microsoft YaHei", monospace; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.field { display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; font-size: 13px; }
+.field input { width: 110px; }
+.toolline { display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.toolline:last-child { border-bottom: none; }
+.toolline .d { color: var(--sub); font-size: 12px; }
+.tprompt { background: var(--soft); border: 1px solid var(--line);
+  border-radius: 7px; padding: 8px 10px; margin-top: 6px; font-size: 12px;
+  line-height: 1.7; white-space: pre-wrap; color: #444; }
+
+/* 记忆 */
+.mem-wrap { display: flex; gap: 14px; }
+.mem-tree { width: 260px; flex-shrink: 0; border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px; max-height: 420px; overflow-y: auto;
+  font-size: 13px; }
+.mem-tree .folder { font-weight: 600; margin-top: 6px; }
+.mem-tree .file { padding-left: 18px; cursor: pointer; color: var(--sub);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem-tree .file:hover, .mem-tree .file.sel { color: var(--ink); }
+.mem-view { flex: 1; min-width: 0; }
+.mem-view textarea { width: 100%; height: 340px; resize: vertical;
+  font: 12.5px/1.7 Consolas, "Microsoft YaHei", monospace; }
+
+/* 记录 */
+.stepline { display: flex; gap: 10px; padding: 6px 0;
+  border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+.stepline:last-child { border-bottom: none; }
+.stepline .t { color: var(--sub); font-family: Consolas, monospace;
+  flex-shrink: 0; }
+.tag { flex-shrink: 0; width: 44px; text-align: center; font-size: 11px;
+  border-radius: 10px; padding: 1px 0; background: var(--soft);
+  border: 1px solid var(--line); color: var(--sub); }
+.tag.trigger { color: #fff; background: var(--ink); border-color: var(--ink); }
+.tag.tool { color: #7a5b00; background: #fdf6e3; border-color: #e8d9a0; }
+.tag.final { color: #fff; background: #3a7a3a; border-color: #3a7a3a; }
+.tag.error { color: #fff; background: #a33; border-color: #a33; }
+.stepline .x { word-break: break-all; }
+
+.log { font: 12px/1.8 Consolas, "Microsoft YaHei", monospace; color: var(--sub);
+  max-height: 160px; overflow-y: auto; word-break: break-all; }
+.log div { border-bottom: 1px dashed var(--line); padding: 1px 0; }
+.log div:last-child { border-bottom: none; color: var(--ink); }
+
+.steps-box { max-height: 300px; overflow-y: auto; }
+.grid2 > .card { min-width: 0; }
+.ctxmsg { border: 1px solid var(--line); border-radius: 8px;
+  margin-bottom: 8px; overflow: hidden; }
+.ctxmsg .head { background: var(--soft); padding: 4px 10px; font-size: 12px;
+  color: var(--sub); }
+.ctxmsg .head b { color: var(--ink); }
+.ctxmsg .body { padding: 6px 10px; font-size: 12.5px; white-space: pre-wrap;
+  word-break: break-word; max-height: 240px; overflow-y: auto;
+  font-family: Consolas, "Microsoft YaHei", monospace; }
+
+/* 思考过程 */
+.think-box { background: var(--soft); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font: 12px/1.7 Consolas, "Microsoft YaHei", monospace;
+  color: #555; white-space: pre-wrap; word-break: break-word;
+  max-height: 200px; overflow-y: auto; }
+
+/* 弹窗 */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal-box { width: 440px; max-height: 70vh; overflow-y: auto;
+  background: #fff; border-radius: 12px; padding: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.15); }
+.witem { padding: 8px 10px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.witem:hover { background: var(--soft); border-color: var(--line); }
+#toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; border-radius: 8px; padding: 9px 20px;
+  z-index: 99; max-width: 80vw; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="side">
+  <div class="side-head"><h1>观域</h1><span id="model-name"></span><button class="btn" id="model-set" style="padding:2px 10px;font-size:12px">设置</button></div>
+  <div class="side-body">
+    <h2>监视框</h2>
+    <div class="row2">
+      <button class="btn dark" id="pick-region">框选屏幕区域</button>
+      <button class="btn" id="pick-window">选择窗口</button>
+    </div>
+    <div id="boxes"></div>
+    <div class="hint">
+      框会持续观察这块画面：有变化时自动唤起 AI 识别并按需操作。
+      窗口框会跟着窗口位置走；框内内容需可见、不被遮挡。
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <button data-tab="chat" class="active">会话</button>
+    <button data-tab="brain">大脑</button>
+    <button data-tab="memory">记忆</button>
+    <button data-tab="ctx">上下文</button>
+    <button class="btn danger" id="btn-exit"
+      style="margin-left:auto;align-self:center;padding:3px 12px">结束进程</button>
+  </div>
+  <div class="tabbody">
+
+    <div class="tab active" id="tab-chat">
+      <div class="card">
+        <div class="row"><span class="k">模型（对话 + 视觉）</span>
+          <span class="val" id="model-full">-</span></div>
+        <div class="row"><span class="k">自动执行（画面变化时唤起 AI）</span>
+          <button class="switch" id="sw-auto"></button></div>
+        <div class="row"><span class="k">演练模式（只记录不动鼠标键盘）</span>
+          <button class="switch" id="sw-dry"></button></div>
+        <div class="row"><span class="k">暂停 AI（立刻中断当前调用，新的变化不再唤醒）</span>
+          <button class="switch pause" id="sw-pause"></button></div>
+        <div class="row"><span class="k">当前状态</span>
+          <span class="val" id="busy-state">空闲</span></div>
+        <div class="row"><span class="k">累计</span>
+          <span class="mut" id="stats">-</span></div>
+      </div>
+
+      <div class="card">
+        <div class="row2" style="align-items:center;margin-bottom:10px">
+          <span style="font-size:13px;color:var(--sub);flex-shrink:0">会话</span>
+          <select id="sess-sel" style="flex:1"></select>
+          <button class="btn" id="sess-new">新建</button>
+          <button class="btn" id="sess-ren">改名</button>
+          <button class="btn danger" id="sess-del">删除</button>
+        </div>
+        <div class="chat-log" id="chat-log">
+          <div class="placeholder">和 AI 说话，它能看到所有监视框画面</div>
+        </div>
+        <div class="chat-input">
+          <textarea id="chat-text" rows="2" placeholder="输入指令，Ctrl+Enter 发送"></textarea>
+          <button class="btn dark" id="send">发送</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:6px">
+          <span class="k">AI 思考过程（实时）</span>
+          <span class="mut" id="think-state">空闲</span>
+        </div>
+        <div id="think-box" class="think-box">（还没有内容。发送消息后，模型的思考会在这里实时滚动显示）</div>
+      </div>
+
+      <div class="grid2">
+        <div class="card" style="margin-bottom:0">
+          <h2>执行过程（AI 每一步做了什么）</h2>
+          <div id="steps" class="steps-box"><div class="mut">暂无</div></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h2>事件</h2>
+          <div class="log" id="events" style="max-height:300px"><div>等待启动</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-brain">
+      <div class="card">
+        <h2>系统提示词（AI 的人格与工作规则，可自由修改）</h2>
+        <textarea class="prompt" id="prompt" spellcheck="false"></textarea>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn dark" id="save-brain">保存大脑设置</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>参数</h2>
+        <div class="grid2">
+          <div class="field"><span>单次最多执行步数</span>
+            <input type="number" id="p-max_steps" min="2" max="40"></div>
+          <div class="field"><span>变化灵敏度（0~255，越小越敏感）</span>
+            <input type="number" id="p-threshold" min="1" max="60"></div>
+          <div class="field"><span>同一框触发冷却（秒）</span>
+            <input type="number" id="p-cooldown" min="5" max="600"></div>
+          <div class="field"><span>检查画面间隔（秒）</span>
+            <input type="number" id="p-interval" min="0.5" max="10" step="0.5"></div>
+          <div class="field"><span>每会话上下文预算（token）</span>
+            <input type="number" id="p-budget" min="2000" step="1000"></div>
+          <div class="field"><span>压缩时保留最近几条原文</span>
+            <input type="number" id="p-keep" min="4" max="40"></div>
+          <div class="field"><span>思考深度（关=快速执行，精度靠视觉校准）</span>
+            <select id="p-thinking">
+              <option value="disabled">关（快速执行）</option>
+              <option value="enabled">开（决策更稳，较慢）</option>
+            </select></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>工具开关（AI 能用什么能力）</h2>
+        <div id="tools"></div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-memory">
+      <div class="card">
+        <h2>记忆设置</h2>
+        <div class="field"><span>记忆文件夹（markdown 原文，按分类建子文件夹）</span></div>
+        <div class="row2" style="margin-top:8px">
+          <input type="text" id="mem-dir" style="flex:1">
+          <button class="btn" id="save-memdir">保存</button>
+          <button class="btn" id="open-memdir">打开文件夹</button>
+        </div>
+        <div class="hint">AI 在对话里可以自己决定把信息存到哪个分类文件夹、以及去哪个文件夹找回记忆；你也可以在这里直接看和改。</div>
+      </div>
+      <div class="card">
+        <h2>会话存储（聊天记录 history.json 所在的文件夹）</h2>
+        <div class="row2" style="margin-top:8px">
+          <input type="text" id="hist-dir" style="flex:1">
+          <button class="btn" id="save-histdir">保存</button>
+          <button class="btn" id="open-histdir">打开文件夹</button>
+        </div>
+        <div class="hint">保存后当前所有会话会立即写入新位置，旧位置的文件原地保留作备份；换新位置后第一次重启程序，旧文件也会自动搬过去。注意：删除某个会话会真正从文件里抹掉，请谨慎。</div>
+      </div>
+      <div class="card">
+        <h2>记忆文件</h2>
+        <div class="mem-wrap">
+          <div class="mem-tree" id="mem-tree"><div class="mut">（空）</div></div>
+          <div class="mem-view">
+            <textarea id="mem-view" readonly
+              placeholder="点左侧文件查看内容；可编辑后保存"></textarea>
+            <div class="row2" style="margin-top:8px">
+              <input type="text" id="mem-cur" readonly style="flex:1"
+                placeholder="未选择文件">
+              <button class="btn" id="mem-savefile">保存修改</button>
+              <button class="btn danger" id="mem-delfile">删除文件</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-ctx">
+      <div class="card">
+        <h2>上下文快照（AI 每一轮真正收到的完整消息，截图以[截图]占位显示）</h2>
+        <div class="row2" style="align-items:center;margin-bottom:10px">
+          <select id="ctx-sel" style="flex:1"></select>
+          <button class="btn" id="ctx-refresh">刷新</button>
+        </div>
+        <div id="ctx-view"><div class="mut">还没有执行记录。和 AI 对话一轮后，这里会显示它收到的完整上下文。</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 窗口选择弹窗 -->
+<div class="modal hidden" id="win-modal">
+  <div class="modal-box">
+    <h2 style="font-size:14px">选择要观察的窗口</h2>
+    <div id="win-list"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn" onclick="document.getElementById('win-modal').classList.add('hidden')">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 模型设置弹窗 -->
+<div class="modal hidden" id="model-modal">
+  <div class="modal-box">
+    <h2 style="font-size:14px">模型设置</h2>
+    <div class="field" style="margin-top:12px"><span>模型名称</span>
+      <input type="text" id="m-model" style="width:230px"></div>
+    <div class="field" style="margin-top:8px"><span>接口地址</span>
+      <input type="text" id="m-base" style="width:230px"></div>
+    <div class="field" style="margin-top:8px"><span>API 密钥</span>
+      <input type="password" id="m-key" placeholder="留空表示不修改" style="width:230px"></div>
+    <div class="row" style="justify-content:flex-start;margin-top:4px">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px">
+        <input type="checkbox" id="m-show">显示明文</label></div>
+    <div class="hint" id="m-cur"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn" id="m-test">测试连接</button>
+      <button class="btn" onclick="document.getElementById('model-modal').classList.add('hidden')">取消</button>
+      <button class="btn dark" id="m-save">保存</button>
+    </div>
+    <div class="hint">保存后立即生效；密钥只显示头尾几位，留空保存就不会改动。若换了不同服务商，接口地址和密钥要一起换。</div>
+  </div>
+</div>
+
+<!-- 结束进程确认弹窗 -->
+<div class="modal hidden" id="exit-modal">
+  <div class="modal-box">
+    <h2 style="font-size:14px">结束进程</h2>
+    <p style="margin-top:10px;font-size:13.5px">确定要结束 AI 屏幕助手吗？<br>
+      正在执行的任务会中断；会话与设置已自动保存。</p>
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="document.getElementById('exit-modal').classList.add('hidden')">取消</button>
+      <button class="btn danger" id="exit-yes" style="border-color:#a33">确认结束</button>
+    </div>
+  </div>
+</div>
+
+<!-- 重命名会话弹窗 -->
+<div class="modal hidden" id="ren-modal">
+  <div class="modal-box">
+    <h2 style="font-size:14px">重命名会话</h2>
+    <div class="row2" style="margin-top:12px">
+      <input type="text" id="ren-name" maxlength="30" style="flex:1" placeholder="输入新的会话名称">
+    </div>
+    <div class="hint">不能和现有会话重名；改名后画面监控也继续走这个会话。</div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px">
+      <button class="btn" onclick="document.getElementById('ren-modal').classList.add('hidden')">取消</button>
+      <button class="btn dark" id="ren-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.add("hidden"), 3000);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path,
+    opts ? { ...opts, headers: { "Content-Type": "application/json" } } : undefined);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+  return d;
+}
+
+let STATUS = null;
+let curFile = "";
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll(".tabs button[data-tab]").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach((x) =>
+      x.classList.toggle("active", x === b));
+    document.querySelectorAll(".tab").forEach((x) =>
+      x.classList.toggle("active", x.id === "tab-" + b.dataset.tab));
+    if (b.dataset.tab === "memory") loadMemTree();
+    if (b.dataset.tab === "ctx") loadCtx();
+  }));
+
+/* ---------------- status ---------------- */
+const KIND_CN = { trigger: "触发", thought: "思考", tool: "工具",
+                  final: "结论", error: "异常" };
+
+function renderStatus(st) {
+  STATUS = st;
+  $("#model-name").textContent = st.model;
+  $("#model-full").textContent = st.model;
+  $("#sw-auto").classList.toggle("on", st.auto_run);
+  $("#sw-dry").classList.toggle("on", st.dry_run);
+  $("#sw-pause").classList.toggle("on", st.paused);
+  $("#busy-state").textContent =
+    st.paused ? "已暂停（任何变化都不会唤醒）" : st.busy ? "执行中…" : "空闲";
+  $("#stats").textContent =
+    `运行 ${st.stats.runs} 次 · 工具 ${st.stats.tool_calls} 次 · ` +
+    `存记忆 ${st.stats.mem_writes} 条 · 失败 ${st.stats.errors} 次`;
+  renderBoxes(st);
+  renderTools(st);
+  if (document.activeElement !== $("#prompt")) $("#prompt").value = st.system_prompt;
+  const p = st.params;
+  for (const [id, key] of [["#p-max_steps","max_steps"],
+                           ["#p-threshold","change_threshold"],
+                           ["#p-cooldown","trigger_cooldown"],
+                           ["#p-interval","check_interval"],
+                           ["#p-budget","context_budget"],
+                           ["#p-keep","compress_keep_recent"]]) {
+    if (document.activeElement !== $(id)) $(id).value = p[key];
+  }
+  if (document.activeElement !== $("#p-thinking"))
+    $("#p-thinking").value = p.thinking in {"auto":1,"enabled":1,"disabled":1}
+      ? p.thinking : "auto";
+  $("#steps").innerHTML = st.steps.length
+    ? st.steps.slice().reverse().map((s) => `
+      <div class="stepline"><span class="t">${esc(s.t)}</span>
+      <span class="tag ${esc(s.kind)}">${KIND_CN[s.kind] || s.kind}</span>
+      <span class="x">${esc(s.text)}</span></div>`).join("")
+    : '<div class="mut">暂无</div>';
+  $("#events").innerHTML = st.events.length
+    ? st.events.map((e) => `<div>${esc(e)}</div>`).join("") : "<div>暂无</div>";
+}
+
+let boxSig = "";   // 结构签名：只有框的增删/改名/报错等结构变化才重建 DOM
+
+function renderBoxes(st) {
+  const sig = JSON.stringify(st.boxes.map((b) =>
+    [b.id, b.name, b.monitor, b.error, b.has_shot,
+     b.rect ? [b.rect[2], b.rect[3]] : 0]));
+  if (sig !== boxSig) {
+    boxSig = sig;
+    $("#boxes").innerHTML = st.boxes.map((b) => `
+      <div class="boxcard" data-id="${b.id}">
+        <div class="boxhead"><b>${esc(b.name)}</b>
+          <span class="mut" data-dims>${b.rect ? b.rect[2] + "x" + b.rect[3] : "无画面"}${b.monitor ? " · 监控中" : ""}</span>
+          <button class="btn danger" data-del="${b.id}" style="padding:2px 8px">删</button></div>
+        ${b.has_shot
+          ? `<img class="preview" data-box-id="${b.id}" data-frame="${b.frame || 0}"
+               src="/api/box/shot?id=${b.id}&t=${b.frame || 0}">`
+          : `<div class="preview" style="display:flex;align-items:center;justify-content:center;color:#aaa">暂无画面</div>`}
+        ${b.error ? `<div class="err-text">${esc(b.error)}</div>` : ""}
+        <div class="boxfoot">
+          <label><input type="checkbox" data-mon="${b.id}" ${b.monitor ? "checked" : ""}>变化监控</label>
+          <span class="mut" style="flex:1" data-lc>${b.last_change ? "上次触发 " + esc(b.last_change) : ""}</span>
+          <button class="btn" data-look="${b.id}" style="padding:3px 10px">看一眼</button>
+        </div>
+      </div>`).join("")
+      || '<div class="hint" style="margin:0">还没有监视框。点上方按钮框选一块屏幕区域，或选择一个窗口。</div>';
+    return;
+  }
+  // 结构没变：只原地更新文字和开关，不动图片（避免闪烁）
+  for (const b of st.boxes) {
+    const card = document.querySelector(`.boxcard[data-id="${b.id}"]`);
+    if (!card) continue;
+    const dims = card.querySelector("[data-dims]");
+    if (dims) dims.textContent =
+      (b.rect ? b.rect[2] + "x" + b.rect[3] : "无画面") + (b.monitor ? " · 监控中" : "");
+    const lc = card.querySelector("[data-lc]");
+    if (lc) lc.textContent = b.last_change ? "上次触发 " + b.last_change : "";
+    const chk = card.querySelector("[data-mon]");
+    if (chk && chk.checked !== b.monitor) chk.checked = b.monitor;
+  }
+}
+
+/* 每秒检查帧号：有新画面才原地换图，页面不重建（消除闪烁） */
+setInterval(async () => {
+  try {
+    const fr = await api("/api/frames");
+    for (const [id, frame] of Object.entries(fr)) {
+      const img = document.querySelector(`img.preview[data-box-id="${id}"]`);
+      if (!img || +img.dataset.frame === frame) continue;
+      img.dataset.frame = frame;
+      img.src = `/api/box/shot?id=${id}&t=${frame}`;
+    }
+  } catch (e) { /* 服务未启动时静默 */ }
+}, 1000);
+
+function renderTools(st) {
+  if ($("#tools").dataset.loaded) return;
+  $("#tools").innerHTML = st.tools.map((t) => `
+    <div class="toolline">
+      <input type="checkbox" data-tool="${esc(t.name)}" ${t.enabled ? "checked" : ""}>
+      <div style="flex:1"><b>${esc(t.name)}</b><div class="d">${esc(t.desc)}</div>
+        ${t.prompt ? `<button class="btn" data-tp="${esc(t.name)}"
+          style="padding:1px 8px;font-size:12px;margin-top:3px">使用说明</button>
+        <div class="tprompt hidden">${esc(t.prompt)}</div>` : ""}
+      </div>
+    </div>`).join("");
+  $("#tools").dataset.loaded = "1";
+}
+
+/* 工具「使用说明」展开/收起：只读展示，AI 实际收到的就是这份说明 */
+$("#tools").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tp]");
+  if (!b) return;
+  const box = b.parentElement.querySelector(".tprompt");
+  if (!box) return;
+  box.classList.toggle("hidden");
+  b.textContent = box.classList.contains("hidden") ? "使用说明" : "收起";
+});
+
+async function refresh() {
+  try { renderStatus(await api("/api/status")); }
+  catch (e) { $("#busy-state").textContent = "服务未运行"; }
+}
+
+/* ---------------- boxes ---------------- */
+$("#pick-region").addEventListener("click", async () => {
+  toast("在屏幕上拖出一个矩形框（Esc 取消）");
+  try {
+    const r = await api("/api/pick_region", { method: "POST", body: "{}" });
+    toast(r.added ? "监视框已创建" : (r.note || "已取消"));
+  } catch (e) { toast("失败: " + e.message); }
+  refresh();
+});
+
+$("#pick-window").addEventListener("click", async () => {
+  try {
+    const d = await api("/api/windows");
+    $("#win-list").innerHTML = d.windows.map((w) =>
+      `<div class="witem" data-hwnd="${w.hwnd}" title="${esc(w.title)}">${esc(w.title)}</div>`).join("")
+      || '<div class="mut">没有找到合适的窗口</div>';
+    $("#win-modal").classList.remove("hidden");
+  } catch (e) { toast(e.message); }
+});
+$("#win-list").addEventListener("click", async (e) => {
+  const it = e.target.closest(".witem");
+  if (!it) return;
+  $("#win-modal").classList.add("hidden");
+  try {
+    await api("/api/box/add", { method: "POST",
+      body: JSON.stringify({ mode: "window", hwnd: +it.dataset.hwnd }) });
+    toast("监视框已创建");
+  } catch (err) { toast("失败: " + err.message); }
+  refresh();
+});
+
+$("#boxes").addEventListener("click", async (e) => {
+  const del = e.target.closest("[data-del]");
+  const look = e.target.closest("[data-look]");
+  if (del) {
+    if (!confirm("删除这个监视框？")) return;
+    await api("/api/box/del", { method: "POST",
+      body: JSON.stringify({ id: +del.dataset.del }) });
+    refresh();
+  } else if (look) {
+    look.disabled = true; look.textContent = "AI查看中…";
+    try {
+      const r = await api("/api/box/look", { method: "POST",
+        body: JSON.stringify({ id: +look.dataset.look }) });
+      bubble("bot", r.reply);
+      document.querySelector('.tabs button[data-tab="chat"]').click();
+    } catch (err) { toast(err.message); }
+    look.disabled = false; look.textContent = "看一眼";
+  }
+});
+$("#boxes").addEventListener("change", async (e) => {
+  const mon = e.target.closest("[data-mon]");
+  if (mon) {
+    await api("/api/box/toggle", { method: "POST",
+      body: JSON.stringify({ id: +mon.dataset.mon, enabled: mon.checked }) });
+    refresh();
+  }
+});
+
+/* ---------------- switches & stop ---------------- */
+$("#sw-auto").addEventListener("click", async () => {
+  await api("/api/config", { method: "POST",
+    body: JSON.stringify({ auto_run: !STATUS.auto_run }) });
+  refresh();
+});
+$("#sw-dry").addEventListener("click", async () => {
+  await api("/api/config", { method: "POST",
+    body: JSON.stringify({ dry_run: !STATUS.dry_run }) });
+  refresh();
+});
+$("#sw-pause").addEventListener("click", async () => {
+  await api("/api/pause", { method: "POST",
+    body: JSON.stringify({ paused: !STATUS.paused }) });
+  refresh();
+});
+$("#btn-exit").addEventListener("click", () => {
+  $("#exit-modal").classList.remove("hidden");
+});
+$("#exit-yes").addEventListener("click", async () => {
+  $("#exit-modal").classList.add("hidden");
+  try { await api("/api/exit", { method: "POST", body: "{}" }); } catch (e) { /* 退出前可能来不及响应 */ }
+  toast("已结束，程序正在退出…");
+});
+
+/* ---------------- chat ---------------- */
+function bubble(role, text) {
+  const box = $("#chat-log");
+  if (box.firstElementChild && box.firstElementChild.className === "placeholder")
+    box.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "bubble " + role;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = 1e9;
+  return div;
+}
+
+async function send() {
+  const text = $("#chat-text").value.trim();
+  if (!text) return;
+  $("#chat-text").value = "";
+  bubble("user", text);
+  const p = bubble("bot", "执行中…（实时过程见本页下方「执行过程」）");
+  $("#send").disabled = true;
+  try {
+    const r = await api("/api/chat", { method: "POST",
+      body: JSON.stringify({ message: text }) });
+    p.textContent = r.reply;
+  } catch (e) {
+    p.className = "bubble bot err";
+    p.textContent = "失败: " + e.message;
+  } finally { $("#send").disabled = false; }
+}
+$("#send").addEventListener("click", send);
+$("#chat-text").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+});
+
+/* ---------------- 会话管理（聊天与画面监控共用当前会话） ---------------- */
+let CUR_SESS = "默认会话";
+
+async function loadSessions() {
+  const d = await api("/api/sessions");
+  CUR_SESS = d.active || d.sessions[0] || "默认会话";
+  $("#sess-sel").innerHTML = d.sessions.map((s) =>
+    `<option ${s === CUR_SESS ? "selected" : ""}>${esc(s)}</option>`).join("");
+  await loadHistory();
+}
+
+async function loadHistory() {
+  const d = await api("/api/history?session=" + encodeURIComponent(CUR_SESS));
+  const box = $("#chat-log");
+  if (!d.messages.length) {
+    box.innerHTML = '<div class="placeholder">和 AI 说话，它能看到所有监视框画面</div>';
+    return;
+  }
+  box.innerHTML = "";
+  for (const m of d.messages) {
+    const c = String(m.content || "");
+    if (m.role === "user" && c.startsWith("[自动]")) {
+      const div = document.createElement("div");
+      div.className = "msg-auto";
+      div.textContent = c;
+      box.appendChild(div);
+    } else {
+      bubble(m.role === "user" ? "user" : "bot", c);
+    }
+  }
+  box.scrollTop = 1e9;
+}
+
+$("#sess-sel").addEventListener("change", async (e) => {
+  try {
+    await api("/api/session/active", { method: "POST",
+      body: JSON.stringify({ name: e.target.value }) });
+    CUR_SESS = e.target.value;
+    await loadHistory();
+  } catch (err) { toast(err.message); refresh(); }
+});
+$("#sess-new").addEventListener("click", async () => {
+  const name = prompt("新会话名称：", "会话" + (Date.now() % 10000));
+  if (!name) return;
+  try {
+    await api("/api/session/new", { method: "POST",
+      body: JSON.stringify({ name }) });
+    await loadSessions();
+    toast("已切换到新会话（画面监控也走这个会话）");
+  } catch (e) { toast(e.message); }
+});
+$("#sess-del").addEventListener("click", async () => {
+  if (!confirm(`删除会话「${CUR_SESS}」及其全部聊天记录？`)) return;
+  try {
+    await api("/api/session/del", { method: "POST",
+      body: JSON.stringify({ name: CUR_SESS }) });
+    await loadSessions();
+  } catch (e) { toast(e.message); }
+});
+
+$("#sess-ren").addEventListener("click", () => {
+  $("#ren-name").value = CUR_SESS;
+  $("#ren-modal").classList.remove("hidden");
+  $("#ren-name").focus();
+  $("#ren-name").select();
+});
+$("#ren-save").addEventListener("click", async () => {
+  const name = $("#ren-name").value.trim();
+  if (!name || name === CUR_SESS) { $("#ren-modal").classList.add("hidden"); return; }
+  try {
+    await api("/api/session/rename", { method: "POST",
+      body: JSON.stringify({ old: CUR_SESS, name }) });
+    $("#ren-modal").classList.add("hidden");
+    await loadSessions();
+    toast("已重命名为「" + name + "」");
+  } catch (e) { toast(e.message); }
+});
+$("#ren-name").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("#ren-save").click();
+});
+
+/* ---------------- 上下文快照 ---------------- */
+const ROLE_CN = { system: "系统提示词", user: "用户",
+                  assistant: "AI 回复", tool: "工具结果" };
+
+function ctxMsg(m) {
+  let body = m.content || "（空）";
+  if (m.tool_calls && m.tool_calls.length)
+    body += "\n[发起工具] " + m.tool_calls.join("  ");
+  return `<div class="ctxmsg"><div class="head"><b>${ROLE_CN[m.role] || esc(m.role)}</b></div>
+    <div class="body">${esc(body)}</div></div>`;
+}
+
+async function loadCtx(pick) {
+  try {
+    const d = await api("/api/context" + (pick != null ? `?i=${pick}` : ""));
+    $("#ctx-sel").innerHTML = (d.runs || []).map((r) =>
+      `<option value="${r.i}" ${r.i === d.latest ? "selected" : ""}>${esc(r.t)} · ${esc(r.session)} · ${r.n} 条消息</option>`).join("");
+    $("#ctx-view").innerHTML = !d.run
+      ? '<div class="mut">还没有执行记录</div>'
+      : d.run.messages.map(ctxMsg).join("");
+  } catch (e) { toast(e.message); }
+}
+$("#ctx-sel").addEventListener("change", (e) => loadCtx(e.target.value));
+$("#ctx-refresh").addEventListener("click", () => loadCtx());
+
+/* ---------------- brain ---------------- */
+$("#save-brain").addEventListener("click", async () => {
+  try {
+    await api("/api/config", { method: "POST", body: JSON.stringify({
+      system_prompt: $("#prompt").value,
+      max_steps: +$("#p-max_steps").value || 12,
+      change_threshold: +$("#p-threshold").value || 6,
+      trigger_cooldown: +$("#p-cooldown").value || 20,
+      check_interval: +$("#p-interval").value || 1,
+      context_budget: +$("#p-budget").value || 800000,
+      compress_keep_recent: +$("#p-keep").value || 8,
+      thinking: $("#p-thinking").value,
+      tools: Object.fromEntries(
+        [...document.querySelectorAll("[data-tool]")].map((c) =>
+          [c.dataset.tool, c.checked])),
+    }) });
+    toast("大脑设置已保存，立即生效");
+  } catch (e) { toast(e.message); }
+  refresh();
+});
+
+/* ---------------- memory ---------------- */
+async function loadMemTree() {
+  try {
+    const st = STATUS || await api("/api/status");
+    if (document.activeElement !== $("#mem-dir")) $("#mem-dir").value = st.memory_dir;
+    if (document.activeElement !== $("#hist-dir"))
+      $("#hist-dir").value = st.history_dir || "";
+    const t = await api("/api/memory/tree");
+    let html = "";
+    for (const f of t.folders) {
+      html += `<div class="folder">${esc(f.name)}/</div>`;
+      for (const file of f.files)
+        html += `<div class="file" data-path="${esc(f.name + "/" + file.name)}">${esc(file.name)}</div>`;
+    }
+    for (const f of t.loose)
+      html += `<div class="file" data-path="${esc(f.name)}" style="padding-left:4px">${esc(f.name)}</div>`;
+    $("#mem-tree").innerHTML = html || '<div class="mut">（记忆库还是空的）</div>';
+  } catch (e) { toast(e.message); }
+}
+$("#mem-tree").addEventListener("click", async (e) => {
+  const f = e.target.closest(".file");
+  if (!f) return;
+  document.querySelectorAll(".mem-tree .file").forEach((x) =>
+    x.classList.toggle("sel", x === f));
+  curFile = f.dataset.path;
+  $("#mem-cur").value = curFile;
+  try {
+    const d = await api("/api/memory/file?path=" + encodeURIComponent(curFile));
+    $("#mem-view").value = d.content;
+    $("#mem-view").readOnly = false;
+  } catch (err) { toast(err.message); }
+});
+$("#save-memdir").addEventListener("click", async () => {
+  try {
+    await api("/api/config", { method: "POST",
+      body: JSON.stringify({ memory_dir: $("#mem-dir").value.trim() }) });
+    toast("记忆文件夹已更新"); loadMemTree();
+  } catch (e) { toast(e.message); }
+});
+$("#save-histdir").addEventListener("click", async () => {
+  try {
+    await api("/api/config", { method: "POST",
+      body: JSON.stringify({ history_dir: $("#hist-dir").value.trim() }) });
+    toast("会话存储位置已更新，当前会话已写入新位置");
+  } catch (e) { toast(e.message); }
+});
+$("#open-histdir").addEventListener("click", async () => {
+  await api("/api/history/open", { method: "POST", body: "{}" });
+});
+$("#open-memdir").addEventListener("click", async () => {
+  await api("/api/memory/open", { method: "POST", body: "{}" });
+});
+$("#mem-savefile").addEventListener("click", async () => {
+  if (!curFile) return toast("先在左侧选择一个文件");
+  const i = curFile.lastIndexOf("/");
+  try {
+    await api("/api/memory/save", { method: "POST", body: JSON.stringify({
+      folder: i >= 0 ? curFile.slice(0, i) : "",
+      filename: i >= 0 ? curFile.slice(i + 1) : curFile,
+      content: $("#mem-view").value }) });
+    toast("已保存"); loadMemTree();
+  } catch (e) { toast(e.message); }
+});
+$("#mem-delfile").addEventListener("click", async () => {
+  if (!curFile || !confirm("删除 " + curFile + "？")) return;
+  try {
+    await api("/api/memory/delete", { method: "POST",
+      body: JSON.stringify({ path: curFile }) });
+    $("#mem-view").value = ""; $("#mem-cur").value = ""; curFile = "";
+    toast("已删除"); loadMemTree();
+  } catch (e) { toast(e.message); }
+});
+
+/* ---------------- 模型设置 ---------------- */
+function modelModalOpen() {
+  if (!STATUS) { toast("服务未运行，稍等再试"); return; }
+  $("#m-model").value = STATUS.model || "";
+  $("#m-base").value = STATUS.base_url || "";
+  $("#m-key").value = "";
+  $("#m-key").type = "password";
+  $("#m-show").checked = false;
+  $("#m-cur").textContent = "当前密钥：" + (STATUS.api_key_masked || "（未设置）");
+  $("#model-modal").classList.remove("hidden");
+}
+$("#model-set").addEventListener("click", modelModalOpen);
+
+function modelModalValues() {
+  const v = { model: $("#m-model").value.trim(),
+              base_url: $("#m-base").value.trim() };
+  const k = $("#m-key").value.trim();
+  if (k) v.api_key = k;   // 留空 = 不修改密钥
+  return v;
+}
+
+$("#m-show").addEventListener("change", (e) => {
+  $("#m-key").type = e.target.checked ? "text" : "password";
+});
+
+$("#m-test").addEventListener("click", async () => {
+  $("#m-test").disabled = true;
+  try {
+    const r = await api("/api/model/test", { method: "POST",
+      body: JSON.stringify(modelModalValues()) });
+    toast("连接成功，模型回复：" + (r.reply || "OK"));
+  } catch (e) { toast("连接失败：" + e.message); }
+  $("#m-test").disabled = false;
+});
+
+$("#m-save").addEventListener("click", async () => {
+  try {
+    await api("/api/config", { method: "POST",
+      body: JSON.stringify(modelModalValues()) });
+    $("#model-modal").classList.add("hidden");
+    toast("模型设置已保存，立即生效");
+  } catch (e) { toast(e.message); }
+  refresh();
+});
+
+/* ---------------- 思考过程（实时轮询） ---------------- */
+let lastThink = null;
+setInterval(async () => {
+  try {
+    const d = await api("/api/thinking");
+    const text = d.text || "";
+    $("#think-state").textContent = d.busy ? "思考中…" : "空闲";
+    if (text !== lastThink) {
+      lastThink = text;
+      const box = $("#think-box");
+      box.textContent = text
+        || (d.busy ? "（等待模型输出…思考档位为关时这里基本没有内容）" : "（暂无）");
+      box.scrollTop = 1e9;
+    }
+  } catch (e) { /* 服务未启动时静默 */ }
+}, 800);
+
+/* ---------------- start ---------------- */
+refresh();
+loadSessions();
+setInterval(refresh, 2500);
+</script>
+</body>
+</html>
