@@ -5,194 +5,508 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>观域 · AI 屏幕助手</title>
 <style>
+/* ============================================================
+   设计 Token 层（唯一数值源，来自 第一轮全项收敛/11-落地工具箱/tokens.css）
+   规则：组件样式只引用 var(--*)，禁止裸 hex/rgba（仅本块与暗色块例外）
+   阵营：B 端工具型（正文 14px / 控件 32px）；黑白灰工具风，不启用品牌蓝
+   ============================================================ */
 :root {
-  --page: #f4f4f4; --card: #ffffff; --ink: #111111; --sub: #777777;
-  --line: #e2e2e2; --line2: #d0d0d0; --soft: #f7f7f7;
+  /* ---------- 1. 间距（4/8 双基准） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---------- 2. 控件尺寸（24/32/40 三档） ---------- */
+  --control-h-s: 24px;
+  --control-h-m: 32px;
+  --control-h-l: 40px;
+  --control-h-xl: 48px;
+  --control-pad-h-s: 8px;
+  --control-pad-h-m: 16px;
+  --control-pad-h-l: 24px;
+  --control-min-w: 96px;
+
+  /* ---------- 3. 字体 ---------- */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-family-code: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+  --font-size-caption: 12px;
+  --font-size-body: 14px;
+  --font-size-body-lg: 16px;
+  --font-size-title-4: 20px;
+  --font-size-title-3: 24px;
+  --font-size-title-2: 30px;
+  --font-size-title-1: 38px;
+
+  --line-height-caption: 20px;
+  --line-height-body: 22px;   /* = 字号 + 8 */
+  --line-height-body-lg: 24px;
+  --line-height-title: 1.25;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* ---------- 4. 颜色（色板 → 语义；品牌蓝仅预留，组件未引用） ---------- */
+  --brand-1: #e6f4ff;
+  --brand-5: #4096ff;
+  --brand-6: #1677ff;
+  --brand-7: #0958d9;
+  --brand-10: #001d66;
+
+  --text-1: rgba(0, 0, 0, 0.88);
+  --text-2: rgba(0, 0, 0, 0.65);
+  --text-3: rgba(0, 0, 0, 0.45);
+  --text-4: rgba(0, 0, 0, 0.25);
+
+  --bg-page: #f5f5f5;
+  --bg-container: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #fafafa;
+  --bg-selected: var(--brand-1);
+
+  --border-split: #f0f0f0;    /* 分割线、卡片描边 */
+  --border-control: #d9d9d9;  /* 按钮/面板边框 */
+
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-error: #ff4d4f;
+  --color-info: var(--brand-6);
+  --color-link: var(--brand-6);
+  --mask: rgba(0, 0, 0, 0.45);
+
+  /* ---------- 5. 圆角 ---------- */
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --radius-l: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ---------- 6. 边框宽度 ---------- */
+  --border-w: 1px;
+  --border-w-focus: 2px;
+
+  /* ---------- 7. 阴影 ---------- */
+  --shadow-1: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
+  --shadow-2: 0 6px 16px 0 rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12), 0 9px 28px 8px rgba(0,0,0,0.05);
+  --shadow-3: 0 12px 48px 16px rgba(0,0,0,0.03), 0 6px 24px 0 rgba(0,0,0,0.08), 0 9px 28px 8px rgba(0,0,0,0.05);
+
+  /* ---------- 8. z-index 语义阶梯 ---------- */
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-skip-link: 600;
+
+  /* ---------- 9. 动效 ---------- */
+  --duration-fast: 100ms;
+  --duration-mid: 200ms;
+  --duration-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  /* ---------- 10. 断点 ---------- */
+  --bp-xs: 480px;
+  --bp-sm: 576px;
+  --bp-md: 768px;
+  --bp-lg: 992px;
+  --bp-xl: 1200px;
+  --bp-xxl: 1600px;
+
+  /* ---------- 11. 布局常量 ---------- */
+  --header-h: 64px;
+  --header-h-sub: 48px;
+  --sider-w: 232px;
+  --sider-w-collapsed: 64px;
+  --content-max-w: 1280px;
+  --grid-gutter: 16px;
+  --modal-w-s: 400px;
+  --modal-w-m: 520px;
+  --modal-w-l: 720px;
+  --menu-max-w: 300px;
+
+  /* ---------- 12. 本工具补充语义（黑白灰工具风） ---------- */
+  --border-input: rgba(0, 0, 0, 0.45);      /* 输入框/选择器专用，对白底 ≥3:1 */
+  --input-pad-x: 10px;                       /* 输入框水平内距 */
+  --text-on-fill: #ffffff;                   /* 深色填充上的文字 */
+  --switch-knob: #ffffff;                    /* 开关滑块（各主题恒白） */
+  --btn-dark-hover: rgba(0, 0, 0, 0.78);     /* 深色按钮 hover（浅一档） */
+  --btn-dark-active: rgba(0, 0, 0, 0.95);    /* 深色按钮 active（深一档） */
+  --focus-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06); /* 输入框聚焦外圈 */
+  --color-error-strong: #cf1322;             /* 小字号错误文字（对比 5.8:1） */
+  --color-success-strong: #237804;           /* 小字号成功底/文字 */
+  --color-warning-strong: #7a5b00;           /* 小字号警示文字（工具标签） */
+  --color-warning-soft-bg: #fdf6e3;          /* 警示标签浅底 */
+  --color-warning-soft-border: #e8d9a0;      /* 警示标签描边 */
 }
+
+/* 暗色模式：整体换值，组件层零改动（预留，暂无切换入口） */
+[theme-mode='dark'] {
+  --text-1: rgba(255, 255, 255, 0.85);
+  --text-2: rgba(255, 255, 255, 0.65);
+  --text-3: rgba(255, 255, 255, 0.45);
+  --text-4: rgba(255, 255, 255, 0.25);
+  --bg-page: #141414;
+  --bg-container: #1f1f1f;
+  --bg-elevated: #2a2a2a;
+  --bg-hover: #262626;
+  --border-split: #303030;
+  --border-control: #424242;
+  --brand-6: #3c89e8;
+  --color-link: #3c89e8;
+  --mask: rgba(0, 0, 0, 0.6);
+  /* 补充 token 的暗色取值 */
+  --border-input: rgba(255, 255, 255, 0.45);
+  --btn-dark-hover: rgba(255, 255, 255, 0.76);
+  --btn-dark-active: rgba(255, 255, 255, 0.92);
+  --focus-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   组件层（只引用 var(--*)）
+   ============================================================ */
 * { box-sizing: border-box; margin: 0; }
 body {
-  background: var(--page); color: var(--ink);
-  font: 14px/1.65 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg-page); color: var(--text-1);
+  font-family: var(--font-family);
+  font-size: var(--font-size-body); line-height: var(--line-height-body);
+  font-variant-numeric: tabular-nums;
   height: 100vh; display: flex; overflow: hidden;
 }
-h1 { font-size: 16px; font-weight: 700; }
-h2 { font-size: 12px; font-weight: 600; color: var(--sub);
-  letter-spacing: .08em; margin-bottom: 10px; }
-.hint { color: var(--sub); font-size: 12px; margin-top: 8px; }
-.mut { color: var(--sub); font-size: 12px; }
+b, strong { font-weight: var(--font-weight-semibold); }
+h1 { font-size: var(--font-size-body-lg); font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-body-lg); }
+h2 { font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  font-weight: var(--font-weight-semibold); color: var(--text-2);
+  letter-spacing: .08em; margin-bottom: var(--space-2); }
+.hint { color: var(--text-2); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption); margin-top: var(--space-2); }
+.mut { color: var(--text-2); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption); }
 .hidden { display: none !important; }
 
 /* 左侧：监视框 */
 .side {
-  width: 340px; min-width: 300px; background: var(--card);
-  border-right: 1px solid var(--line2); display: flex; flex-direction: column;
+  width: 340px; min-width: 300px; background: var(--bg-container);
+  border-right: var(--border-w) solid var(--border-control);
+  display: flex; flex-direction: column;
 }
-.side-head { padding: 14px 16px; border-bottom: 1px solid var(--line);
+.side-head { padding: var(--space-4);
+  border-bottom: var(--border-w) solid var(--border-split);
   display: flex; align-items: center; }
-.side-head span { color: var(--sub); font-size: 12px; margin-left: 8px; }
+.side-head span { color: var(--text-2); font-size: var(--font-size-caption);
+  margin-left: var(--space-2); }
 .side-head .btn { margin-left: auto; }
-.side-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
-.row2 { display: flex; gap: 8px; margin-bottom: 10px; }
+.side-body { flex: 1; overflow-y: auto; padding: var(--space-3) var(--space-4); }
+.row2 { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
 .row2 .btn { flex: 1; }
 
-.boxcard { border: 1px solid var(--line); border-radius: 10px;
-  margin-bottom: 12px; overflow: hidden; background: #fff; }
-.boxhead { display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; background: var(--soft); border-bottom: 1px solid var(--line); }
-.boxhead b { font-size: 13px; }
+.boxcard { border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-l); margin-bottom: var(--space-3);
+  overflow: hidden; background: var(--bg-container); }
+.boxhead { display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); background: var(--bg-hover);
+  border-bottom: var(--border-w) solid var(--border-split);
+  transition: background-color var(--duration-fast) var(--ease-standard); }
+/* 头部条本身是浅灰底，hover 取更深一档灰（--bg-page）示意可操作 */
+.boxcard .boxhead:hover { background: var(--bg-page); }
+.boxhead b { font-size: var(--font-size-body); line-height: var(--line-height-body); }
 .boxhead .mut { flex: 1; text-align: right; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
-.preview { width: 100%; display: block; background: #eee; min-height: 60px;
-  object-fit: contain; max-height: 260px; }
-.boxfoot { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
-.boxfoot label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; }
-.err-text { color: #a33; font-size: 12px; padding: 0 10px 8px; word-break: break-all; }
+.preview { width: 100%; display: block; background: var(--bg-page);
+  min-height: 60px; object-fit: contain; max-height: 260px; }
+.boxfoot { display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); }
+.boxfoot label { display: flex; align-items: center; gap: var(--space-1);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
+.err-text { color: var(--color-error-strong); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  padding: 0 var(--space-2) var(--space-2); word-break: break-all; }
 
 /* 右侧：工作台 */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.tabs { display: flex; gap: 2px; padding: 10px 16px 0;
-  background: var(--card); border-bottom: 1px solid var(--line); }
-.tabs button { background: none; border: none; padding: 8px 16px;
-  font: inherit; color: var(--sub); cursor: pointer;
-  border-bottom: 2px solid transparent; }
-.tabs button.active { color: var(--ink); font-weight: 600;
-  border-bottom-color: var(--ink); }
-.tabbody { flex: 1; overflow-y: auto; padding: 16px; }
+.tabs { display: flex; gap: var(--space-1); padding: var(--space-3) var(--space-4) 0;
+  background: var(--bg-container);
+  border-bottom: var(--border-w) solid var(--border-split); }
+.tabs button { background: none; border: none;
+  padding: var(--space-2) var(--space-4);
+  font-family: inherit; font-size: var(--font-size-body);
+  color: var(--text-2); cursor: pointer;
+  border-bottom: var(--border-w-focus) solid transparent;
+  transition: color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard); }
+.tabs button:hover { color: var(--text-1); }
+.tabs button.active { color: var(--text-1); font-weight: var(--font-weight-semibold);
+  border-bottom-color: var(--text-1); }
+.tabbody { flex: 1; overflow-y: auto; padding: var(--space-4); }
 .tab { display: none; max-width: 860px; }
 .tab.active { display: block; }
-.card { background: var(--card); border: 1px solid var(--line);
-  border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.card { background: var(--bg-container);
+  border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-l); padding: var(--space-4);
+  margin-bottom: var(--space-4); }
 
 .row { display: flex; justify-content: space-between; align-items: center;
-  padding: 5px 0; font-size: 13.5px; gap: 10px; }
-.row .k { color: var(--sub); flex-shrink: 0; }
-.val { font-weight: 600; }
+  padding: var(--space-1) 0; font-size: var(--font-size-body);
+  line-height: var(--line-height-body); gap: var(--space-2); }
+.row .k { color: var(--text-2); flex-shrink: 0; }
+.val { font-weight: var(--font-weight-semibold); }
 
-.switch { position: relative; width: 40px; height: 22px; background: #d9d9d9;
-  border-radius: 12px; cursor: pointer; transition: background .15s; border: none;
-  flex-shrink: 0; }
+.switch { position: relative; width: 40px; height: 22px;
+  background: var(--border-control); border-radius: var(--radius-full);
+  cursor: pointer; border: none; flex-shrink: 0;
+  transition: background-color var(--duration-mid) var(--ease-standard); }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px;
-  width: 16px; height: 16px; border-radius: 50%; background: #fff;
-  transition: left .15s; }
-.switch.on { background: var(--ink); }
+  width: 16px; height: 16px; border-radius: 50%; background: var(--switch-knob);
+  transition: left var(--duration-mid) var(--ease-standard); }
+.switch.on { background: var(--text-1); }
 .switch.on::after { left: 21px; }
-.switch.pause.on { background: #a33; }
+.switch.pause.on { background: var(--color-error); }
 
-.btn { border: 1px solid var(--line2); background: #fff; color: var(--ink);
-  border-radius: 7px; padding: 7px 14px; font: inherit; cursor: pointer;
-  font-size: 13px; }
-.btn:hover { border-color: var(--ink); }
-.btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
-.btn.dark:hover { opacity: .85; }
-.btn.danger { color: #a33; }
-.btn:disabled { opacity: .4; cursor: wait; }
-input[type="text"], input[type="number"], textarea, select {
-  border: 1px solid var(--line2); border-radius: 7px; padding: 7px 10px;
-  font: inherit; outline: none; background: #fff; }
-input:focus, textarea:focus { border-color: var(--ink); }
-input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--ink); }
+.btn { border: var(--border-w) solid var(--border-control);
+  background: var(--bg-container); color: var(--text-1);
+  border-radius: var(--radius-m);
+  height: var(--control-h-m); padding: 0 var(--control-pad-h-m);
+  font-family: inherit; font-size: var(--font-size-body);
+  cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard); }
+.btn:hover { background: var(--bg-hover); border-color: var(--text-3); }
+.btn:active { transform: translateY(1px); }
+.btn.dark { background: var(--text-1); border-color: var(--text-1);
+  color: var(--text-on-fill); }
+.btn.dark:hover { background: var(--btn-dark-hover); }
+.btn.dark:active { background: var(--btn-dark-active); }
+.btn.danger { color: var(--color-error-strong); }
+.btn:disabled, .btn.dark:disabled { color: var(--text-4);
+  background: var(--bg-page); border-color: var(--border-split);
+  cursor: not-allowed; }
+.btn-sm { height: var(--control-h-s); padding: 0 var(--control-pad-h-s);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
+
+input[type="text"], input[type="number"], input[type="password"], textarea, select {
+  border: var(--border-w) solid var(--border-input);
+  border-radius: var(--radius-m);
+  font-family: inherit; font-size: var(--font-size-body);
+  line-height: var(--line-height-body); color: var(--text-1);
+  outline: none; background: var(--bg-container); }
+input[type="text"], input[type="number"], input[type="password"], select {
+  height: var(--control-h-m); padding: 0 var(--input-pad-x); }
+textarea { padding: var(--space-2) var(--input-pad-x); }
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+input:focus, textarea:focus, select:focus { border-color: var(--text-1);
+  box-shadow: var(--focus-shadow); }
+input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--text-1); }
 
 /* 对话 */
 .chat-log { height: 240px; overflow-y: auto; display: flex;
-  flex-direction: column; gap: 8px; padding: 2px 0 8px; }
-.bubble { max-width: 85%; padding: 8px 12px; border-radius: 10px;
-  font-size: 13.5px; white-space: pre-wrap; word-break: break-word; }
-.bubble.user { align-self: flex-end; background: var(--ink); color: #fff;
-  border-bottom-right-radius: 3px; }
-.bubble.bot { align-self: flex-start; background: var(--soft);
-  border: 1px solid var(--line); border-bottom-left-radius: 3px; }
-.bubble.bot.err { border-color: #a33; color: #a33; }
-.msg-auto { align-self: center; background: var(--soft); border: 1px dashed var(--line);
-  color: var(--sub); font-size: 12px; border-radius: 12px; padding: 2px 12px;
+  flex-direction: column; gap: var(--space-2);
+  padding: var(--space-1) 0 var(--space-2); }
+.bubble { max-width: 85%; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-l); font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  white-space: pre-wrap; word-break: break-word; }
+.bubble.user { align-self: flex-end; background: var(--text-1);
+  color: var(--text-on-fill); border-bottom-right-radius: var(--radius-s); }
+.bubble.bot { align-self: flex-start; background: var(--bg-hover);
+  border: var(--border-w) solid var(--border-split);
+  border-bottom-left-radius: var(--radius-s); }
+.bubble.bot.err { border-color: var(--color-error); color: var(--color-error-strong); }
+.msg-auto { align-self: center; background: var(--bg-hover);
+  border: var(--border-w) dashed var(--border-split);
+  color: var(--text-2); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  border-radius: var(--radius-l); padding: var(--space-1) var(--space-3);
   max-width: 90%; word-break: break-all; }
-.placeholder { margin: auto; color: var(--line2); }
-.chat-input { display: flex; gap: 8px; }
+.placeholder { margin: auto; color: var(--text-3);
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-2); text-align: center; padding: var(--space-2); }
+.placeholder-actions { display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--space-2); }
+.placeholder-actions .btn { color: var(--text-2); }
+.placeholder-actions .btn:hover { color: var(--text-1); }
+.chat-input { display: flex; gap: var(--space-2); }
 .chat-input textarea { flex: 1; resize: none; }
 
 /* 大脑 */
 textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
-  font: 12.5px/1.7 Consolas, "Microsoft YaHei", monospace; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-4); }
 .field { display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; font-size: 13px; }
+  gap: var(--space-2); font-size: var(--font-size-body);
+  line-height: var(--line-height-body); }
 .field input { width: 110px; }
-.toolline { display: flex; align-items: flex-start; gap: 8px;
-  padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.toolline { display: flex; align-items: flex-start; gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-w) dashed var(--border-split);
+  font-size: var(--font-size-body); line-height: var(--line-height-body);
+  transition: background-color var(--duration-fast) var(--ease-standard); }
+.toolline:hover { background: var(--bg-hover); }
 .toolline:last-child { border-bottom: none; }
-.toolline .d { color: var(--sub); font-size: 12px; }
-.tprompt { background: var(--soft); border: 1px solid var(--line);
-  border-radius: 7px; padding: 8px 10px; margin-top: 6px; font-size: 12px;
-  line-height: 1.7; white-space: pre-wrap; color: #444; }
+.toolline .d { color: var(--text-2); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption); }
+.tprompt { background: var(--bg-hover);
+  border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-m); padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-2); font-size: var(--font-size-caption);
+  line-height: var(--line-height-caption);
+  font-family: var(--font-family-code);
+  white-space: pre-wrap; color: var(--text-2); }
 
 /* 记忆 */
-.mem-wrap { display: flex; gap: 14px; }
-.mem-tree { width: 260px; flex-shrink: 0; border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px; max-height: 420px; overflow-y: auto;
-  font-size: 13px; }
-.mem-tree .folder { font-weight: 600; margin-top: 6px; }
-.mem-tree .file { padding-left: 18px; cursor: pointer; color: var(--sub);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mem-tree .file:hover, .mem-tree .file.sel { color: var(--ink); }
+.mem-wrap { display: flex; gap: var(--space-4); }
+.mem-tree { width: 260px; flex-shrink: 0;
+  border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-l); padding: var(--space-2);
+  max-height: 420px; overflow-y: auto;
+  font-size: var(--font-size-body); line-height: var(--line-height-body); }
+.mem-tree .folder { font-weight: var(--font-weight-semibold);
+  margin-top: var(--space-2); }
+.mem-tree .file { padding-left: var(--space-4); cursor: pointer;
+  color: var(--text-2); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard); }
+.mem-tree .file:hover { color: var(--text-1); background: var(--bg-hover); }
+.mem-tree .file.sel { color: var(--text-1); }
 .mem-view { flex: 1; min-width: 0; }
 .mem-view textarea { width: 100%; height: 340px; resize: vertical;
-  font: 12.5px/1.7 Consolas, "Microsoft YaHei", monospace; }
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 
 /* 记录 */
-.stepline { display: flex; gap: 10px; padding: 6px 0;
-  border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+.stepline { display: flex; gap: var(--space-2); padding: var(--space-2) 0;
+  border-bottom: var(--border-w) dashed var(--border-split);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 .stepline:last-child { border-bottom: none; }
-.stepline .t { color: var(--sub); font-family: Consolas, monospace;
+.stepline .t { color: var(--text-2); font-family: var(--font-family-code);
   flex-shrink: 0; }
-.tag { flex-shrink: 0; width: 44px; text-align: center; font-size: 11px;
-  border-radius: 10px; padding: 1px 0; background: var(--soft);
-  border: 1px solid var(--line); color: var(--sub); }
-.tag.trigger { color: #fff; background: var(--ink); border-color: var(--ink); }
-.tag.tool { color: #7a5b00; background: #fdf6e3; border-color: #e8d9a0; }
-.tag.final { color: #fff; background: #3a7a3a; border-color: #3a7a3a; }
-.tag.error { color: #fff; background: #a33; border-color: #a33; }
+.tag { flex-shrink: 0; width: 44px; text-align: center;
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  border-radius: var(--radius-s); background: var(--bg-hover);
+  border: var(--border-w) solid var(--border-split); color: var(--text-2); }
+.tag.trigger { color: var(--text-on-fill); background: var(--text-1);
+  border-color: var(--text-1); }
+.tag.tool { color: var(--color-warning-strong);
+  background: var(--color-warning-soft-bg);
+  border-color: var(--color-warning-soft-border); }
+.tag.final { color: var(--text-on-fill); background: var(--color-success-strong);
+  border-color: var(--color-success-strong); }
+.tag.error { color: var(--text-on-fill); background: var(--color-error-strong);
+  border-color: var(--color-error-strong); }
 .stepline .x { word-break: break-all; }
 
-.log { font: 12px/1.8 Consolas, "Microsoft YaHei", monospace; color: var(--sub);
-  max-height: 160px; overflow-y: auto; word-break: break-all; }
-.log div { border-bottom: 1px dashed var(--line); padding: 1px 0; }
-.log div:last-child { border-bottom: none; color: var(--ink); }
+.log { font-family: var(--font-family-code);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  color: var(--text-2); max-height: 160px; overflow-y: auto;
+  word-break: break-all; }
+.log div { border-bottom: var(--border-w) dashed var(--border-split); }
+.log div:last-child { border-bottom: none; color: var(--text-1); }
 
 .steps-box { max-height: 300px; overflow-y: auto; }
 .grid2 > .card { min-width: 0; }
-.ctxmsg { border: 1px solid var(--line); border-radius: 8px;
-  margin-bottom: 8px; overflow: hidden; }
-.ctxmsg .head { background: var(--soft); padding: 4px 10px; font-size: 12px;
-  color: var(--sub); }
-.ctxmsg .head b { color: var(--ink); }
-.ctxmsg .body { padding: 6px 10px; font-size: 12.5px; white-space: pre-wrap;
-  word-break: break-word; max-height: 240px; overflow-y: auto;
-  font-family: Consolas, "Microsoft YaHei", monospace; }
+.ctxmsg { border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-l); margin-bottom: var(--space-2);
+  overflow: hidden; }
+.ctxmsg .head { background: var(--bg-hover);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  color: var(--text-2); }
+.ctxmsg .head b { color: var(--text-1); }
+.ctxmsg .body { padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  white-space: pre-wrap; word-break: break-word; max-height: 240px;
+  overflow-y: auto; font-family: var(--font-family-code); }
 
 /* 思考过程 */
-.think-box { background: var(--soft); border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px 10px; font: 12px/1.7 Consolas, "Microsoft YaHei", monospace;
-  color: #555; white-space: pre-wrap; word-break: break-word;
+.think-box { background: var(--bg-hover);
+  border: var(--border-w) solid var(--border-split);
+  border-radius: var(--radius-l); padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-caption); line-height: var(--line-height-caption);
+  color: var(--text-2); white-space: pre-wrap; word-break: break-word;
   max-height: 200px; overflow-y: auto; }
 
 /* 弹窗 */
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,.35);
-  display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal-box { width: 440px; max-height: 70vh; overflow-y: auto;
-  background: #fff; border-radius: 12px; padding: 16px;
-  box-shadow: 0 10px 40px rgba(0,0,0,.15); }
-.witem { padding: 8px 10px; border-radius: 7px; cursor: pointer;
-  border: 1px solid transparent; font-size: 13px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.witem:hover { background: var(--soft); border-color: var(--line); }
-#toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
-  background: var(--ink); color: #fff; border-radius: 8px; padding: 9px 20px;
-  z-index: 99; max-width: 80vw; font-size: 13px; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; } }
+.modal { position: fixed; inset: 0; background: var(--mask);
+  display: flex; align-items: center; justify-content: center;
+  z-index: var(--z-modal); }
+.modal:not(.hidden) { animation: fade var(--duration-mid) var(--ease-enter); }
+.modal:not(.hidden) .modal-box { animation: pop var(--duration-mid) var(--ease-enter); }
+.modal-box { width: var(--modal-w-m); max-height: 70vh; overflow-y: auto;
+  background: var(--bg-elevated); border-radius: var(--radius-xl);
+  padding: var(--space-6); box-shadow: var(--shadow-3); }
+.witem { padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-m); cursor: pointer;
+  border: var(--border-w) solid transparent;
+  font-size: var(--font-size-body); line-height: var(--line-height-body);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard); }
+.witem:hover { background: var(--bg-hover); border-color: var(--border-split); }
+#toast { position: fixed; bottom: var(--space-6); left: 50%;
+  transform: translateX(-50%); background: var(--text-1);
+  color: var(--text-on-fill); border-radius: var(--radius-l);
+  padding: var(--space-2) var(--space-5); z-index: var(--z-popover);
+  max-width: 80vw; font-size: var(--font-size-body);
+  line-height: var(--line-height-body); }
+
+/* 焦点环（黑白灰主题用 --text-1 纯黑描边） */
+:focus-visible { outline: var(--border-w-focus) solid var(--text-1);
+  outline-offset: 2px; }
+/* 文本输入类聚焦已有边框加深 + 外圈，免双重指示 */
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+
+/* 响应式（轻量）：窄窗口纵向堆叠，不横向溢出 */
+@media (max-width: 900px) {
+  body { flex-direction: column; }
+  .side { width: 100%; min-width: 0; max-height: 40vh;
+    border-right: none;
+    border-bottom: var(--border-w) solid var(--border-control); }
+  .main { min-height: 0; }
+}
+@media (max-width: 768px) {
+  .grid2 { grid-template-columns: 1fr; }
+}
+
+/* 减少动态效果：全部动效归零 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 </head>
 <body>
 
 <div class="side">
-  <div class="side-head"><h1>观域</h1><span id="model-name"></span><button class="btn" id="model-set" style="padding:2px 10px;font-size:12px">设置</button></div>
+  <div class="side-head"><h1>观域</h1><span id="model-name"></span><button class="btn btn-sm" id="model-set">设置</button></div>
   <div class="side-body">
     <h2>监视框</h2>
     <div class="row2">
@@ -213,8 +527,8 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
     <button data-tab="brain">大脑</button>
     <button data-tab="memory">记忆</button>
     <button data-tab="ctx">上下文</button>
-    <button class="btn danger" id="btn-exit"
-      style="margin-left:auto;align-self:center;padding:3px 12px">结束进程</button>
+    <button class="btn danger btn-sm" id="btn-exit"
+      style="margin-left:auto;align-self:center">结束进程</button>
   </div>
   <div class="tabbody">
 
@@ -223,11 +537,11 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
         <div class="row"><span class="k">模型（对话 + 视觉）</span>
           <span class="val" id="model-full">-</span></div>
         <div class="row"><span class="k">自动执行（画面变化时唤起 AI）</span>
-          <button class="switch" id="sw-auto"></button></div>
+          <button class="switch" id="sw-auto" role="switch" aria-checked="false"></button></div>
         <div class="row"><span class="k">演练模式（只记录不动鼠标键盘）</span>
-          <button class="switch" id="sw-dry"></button></div>
+          <button class="switch" id="sw-dry" role="switch" aria-checked="false"></button></div>
         <div class="row"><span class="k">暂停 AI（立刻中断当前调用，新的变化不再唤醒）</span>
-          <button class="switch pause" id="sw-pause"></button></div>
+          <button class="switch pause" id="sw-pause" role="switch" aria-checked="false"></button></div>
         <div class="row"><span class="k">当前状态</span>
           <span class="val" id="busy-state">空闲</span></div>
         <div class="row"><span class="k">累计</span>
@@ -235,15 +549,21 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       </div>
 
       <div class="card">
-        <div class="row2" style="align-items:center;margin-bottom:10px">
-          <span style="font-size:13px;color:var(--sub);flex-shrink:0">会话</span>
-          <select id="sess-sel" style="flex:1"></select>
+        <div class="row2" style="align-items:center;margin-bottom:var(--space-2)">
+          <span style="font-size:var(--font-size-body);color:var(--text-2);flex-shrink:0">会话</span>
+          <select id="sess-sel" aria-label="选择会话" style="flex:1"></select>
           <button class="btn" id="sess-new">新建</button>
           <button class="btn" id="sess-ren">改名</button>
           <button class="btn danger" id="sess-del">删除</button>
         </div>
-        <div class="chat-log" id="chat-log">
-          <div class="placeholder">和 AI 说话，它能看到所有监视框画面</div>
+        <div class="chat-log" id="chat-log" role="log" aria-live="polite">
+          <div class="placeholder">
+            <div>和 AI 说话，它能看到所有监视框画面</div>
+            <div class="placeholder-actions">
+              <button class="btn btn-sm" data-eg="看看微信有没有新消息">看看微信有没有新消息</button>
+              <button class="btn btn-sm" data-eg="查看记忆库里有哪些分类">查看记忆库里有哪些分类</button>
+            </div>
+          </div>
         </div>
         <div class="chat-input">
           <textarea id="chat-text" rows="2" placeholder="输入指令，Ctrl+Enter 发送"></textarea>
@@ -252,7 +572,7 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       </div>
 
       <div class="card">
-        <div class="row" style="margin-bottom:6px">
+        <div class="row" style="margin-bottom:var(--space-2)">
           <span class="k">AI 思考过程（实时）</span>
           <span class="mut" id="think-state">空闲</span>
         </div>
@@ -262,7 +582,7 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       <div class="grid2">
         <div class="card" style="margin-bottom:0">
           <h2>执行过程（AI 每一步做了什么）</h2>
-          <div id="steps" class="steps-box"><div class="mut">暂无</div></div>
+          <div id="steps" class="steps-box"><div class="mut">-</div></div>
         </div>
         <div class="card" style="margin-bottom:0">
           <h2>事件</h2>
@@ -311,7 +631,7 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       <div class="card">
         <h2>记忆设置</h2>
         <div class="field"><span>记忆文件夹（markdown 原文，按分类建子文件夹）</span></div>
-        <div class="row2" style="margin-top:8px">
+        <div class="row2" style="margin-top:var(--space-2)">
           <input type="text" id="mem-dir" style="flex:1">
           <button class="btn" id="save-memdir">保存</button>
           <button class="btn" id="open-memdir">打开文件夹</button>
@@ -320,7 +640,7 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       </div>
       <div class="card">
         <h2>会话存储（聊天记录 history.json 所在的文件夹）</h2>
-        <div class="row2" style="margin-top:8px">
+        <div class="row2" style="margin-top:var(--space-2)">
           <input type="text" id="hist-dir" style="flex:1">
           <button class="btn" id="save-histdir">保存</button>
           <button class="btn" id="open-histdir">打开文件夹</button>
@@ -330,11 +650,11 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
       <div class="card">
         <h2>记忆文件</h2>
         <div class="mem-wrap">
-          <div class="mem-tree" id="mem-tree"><div class="mut">（空）</div></div>
+          <div class="mem-tree" id="mem-tree"><div class="mut">-</div></div>
           <div class="mem-view">
             <textarea id="mem-view" readonly
               placeholder="点左侧文件查看内容；可编辑后保存"></textarea>
-            <div class="row2" style="margin-top:8px">
+            <div class="row2" style="margin-top:var(--space-2)">
               <input type="text" id="mem-cur" readonly style="flex:1"
                 placeholder="未选择文件">
               <button class="btn" id="mem-savefile">保存修改</button>
@@ -348,8 +668,8 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
     <div class="tab" id="tab-ctx">
       <div class="card">
         <h2>上下文快照（AI 每一轮真正收到的完整消息，截图以[截图]占位显示）</h2>
-        <div class="row2" style="align-items:center;margin-bottom:10px">
-          <select id="ctx-sel" style="flex:1"></select>
+        <div class="row2" style="align-items:center;margin-bottom:var(--space-2)">
+          <select id="ctx-sel" aria-label="选择要查看的执行轮次" style="flex:1"></select>
           <button class="btn" id="ctx-refresh">刷新</button>
         </div>
         <div id="ctx-view"><div class="mut">还没有执行记录。和 AI 对话一轮后，这里会显示它收到的完整上下文。</div></div>
@@ -362,10 +682,10 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
 <!-- 窗口选择弹窗 -->
 <div class="modal hidden" id="win-modal">
   <div class="modal-box">
-    <h2 style="font-size:14px">选择要观察的窗口</h2>
+    <h2 style="font-size:var(--font-size-body)">选择要观察的窗口</h2>
     <div id="win-list"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:10px">
-      <button class="btn" onclick="document.getElementById('win-modal').classList.add('hidden')">取消</button>
+    <div class="row" style="justify-content:flex-end;margin-top:var(--space-2)">
+      <button class="btn" onclick="closeModal('win-modal')">取消</button>
     </div>
   </div>
 </div>
@@ -373,20 +693,20 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
 <!-- 模型设置弹窗 -->
 <div class="modal hidden" id="model-modal">
   <div class="modal-box">
-    <h2 style="font-size:14px">模型设置</h2>
-    <div class="field" style="margin-top:12px"><span>模型名称</span>
+    <h2 style="font-size:var(--font-size-body)">模型设置</h2>
+    <div class="field" style="margin-top:var(--space-3)"><span>模型名称</span>
       <input type="text" id="m-model" style="width:230px"></div>
-    <div class="field" style="margin-top:8px"><span>接口地址</span>
+    <div class="field" style="margin-top:var(--space-2)"><span>接口地址</span>
       <input type="text" id="m-base" style="width:230px"></div>
-    <div class="field" style="margin-top:8px"><span>API 密钥</span>
+    <div class="field" style="margin-top:var(--space-2)"><span>API 密钥</span>
       <input type="password" id="m-key" placeholder="留空表示不修改" style="width:230px"></div>
-    <div class="row" style="justify-content:flex-start;margin-top:4px">
-      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px">
+    <div class="row" style="justify-content:flex-start;margin-top:var(--space-1)">
+      <label style="display:flex;align-items:center;gap:var(--space-1);font-size:var(--font-size-caption)">
         <input type="checkbox" id="m-show">显示明文</label></div>
     <div class="hint" id="m-cur"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:10px">
+    <div class="row" style="justify-content:flex-end;margin-top:var(--space-2)">
       <button class="btn" id="m-test">测试连接</button>
-      <button class="btn" onclick="document.getElementById('model-modal').classList.add('hidden')">取消</button>
+      <button class="btn" onclick="closeModal('model-modal')">取消</button>
       <button class="btn dark" id="m-save">保存</button>
     </div>
     <div class="hint">保存后立即生效；密钥只显示头尾几位，留空保存就不会改动。若换了不同服务商，接口地址和密钥要一起换。</div>
@@ -396,12 +716,12 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
 <!-- 结束进程确认弹窗 -->
 <div class="modal hidden" id="exit-modal">
   <div class="modal-box">
-    <h2 style="font-size:14px">结束进程</h2>
-    <p style="margin-top:10px;font-size:13.5px">确定要结束 AI 屏幕助手吗？<br>
+    <h2 style="font-size:var(--font-size-body)">结束进程</h2>
+    <p style="margin-top:var(--space-2);font-size:var(--font-size-body)">确定要结束 AI 屏幕助手吗？<br>
       正在执行的任务会中断；会话与设置已自动保存。</p>
-    <div class="row" style="justify-content:flex-end;margin-top:14px">
-      <button class="btn" onclick="document.getElementById('exit-modal').classList.add('hidden')">取消</button>
-      <button class="btn danger" id="exit-yes" style="border-color:#a33">确认结束</button>
+    <div class="row" style="justify-content:flex-end;margin-top:var(--space-4)">
+      <button class="btn" onclick="closeModal('exit-modal')">取消</button>
+      <button class="btn danger" id="exit-yes" style="border-color:var(--color-error)">确认结束</button>
     </div>
   </div>
 </div>
@@ -409,19 +729,19 @@ textarea.prompt { width: 100%; min-height: 260px; resize: vertical;
 <!-- 重命名会话弹窗 -->
 <div class="modal hidden" id="ren-modal">
   <div class="modal-box">
-    <h2 style="font-size:14px">重命名会话</h2>
-    <div class="row2" style="margin-top:12px">
+    <h2 style="font-size:var(--font-size-body)">重命名会话</h2>
+    <div class="row2" style="margin-top:var(--space-3)">
       <input type="text" id="ren-name" maxlength="30" style="flex:1" placeholder="输入新的会话名称">
     </div>
     <div class="hint">不能和现有会话重名；改名后画面监控也继续走这个会话。</div>
-    <div class="row" style="justify-content:flex-end;margin-top:10px">
-      <button class="btn" onclick="document.getElementById('ren-modal').classList.add('hidden')">取消</button>
+    <div class="row" style="justify-content:flex-end;margin-top:var(--space-2)">
+      <button class="btn" onclick="closeModal('ren-modal')">取消</button>
       <button class="btn dark" id="ren-save">保存</button>
     </div>
   </div>
 </div>
 
-<div id="toast" class="hidden"></div>
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
@@ -448,6 +768,37 @@ async function api(path, opts) {
 let STATUS = null;
 let curFile = "";
 
+/* ---------------- 弹窗：打开/关闭 + Esc + 焦点管理 ----------------
+   打开时焦点移入弹窗内第一个控件，关闭时还给触发元素；
+   exit-modal 是破坏性确认（结束进程），Esc 不关闭。 */
+const ESC_CLOSEABLE = ["win-modal", "model-modal", "ren-modal"];
+let modalTrigger = null;
+
+function openModal(id) {
+  modalTrigger = document.activeElement;
+  const m = document.getElementById(id);
+  m.classList.remove("hidden");
+  const f = m.querySelector("input, select, textarea, button");
+  if (f) f.focus({ preventScroll: true });
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add("hidden");
+  if (modalTrigger && document.contains(modalTrigger))
+    modalTrigger.focus({ preventScroll: true });
+  modalTrigger = null;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  for (const id of ESC_CLOSEABLE) {
+    if (!document.getElementById(id).classList.contains("hidden")) {
+      closeModal(id);
+      return;
+    }
+  }
+});
+
 /* ---------------- tabs ---------------- */
 document.querySelectorAll(".tabs button[data-tab]").forEach((b) =>
   b.addEventListener("click", () => {
@@ -468,8 +819,11 @@ function renderStatus(st) {
   $("#model-name").textContent = st.model;
   $("#model-full").textContent = st.model;
   $("#sw-auto").classList.toggle("on", st.auto_run);
+  $("#sw-auto").setAttribute("aria-checked", String(!!st.auto_run));
   $("#sw-dry").classList.toggle("on", st.dry_run);
+  $("#sw-dry").setAttribute("aria-checked", String(!!st.dry_run));
   $("#sw-pause").classList.toggle("on", st.paused);
+  $("#sw-pause").setAttribute("aria-checked", String(!!st.paused));
   $("#busy-state").textContent =
     st.paused ? "已暂停（任何变化都不会唤醒）" : st.busy ? "执行中…" : "空闲";
   $("#stats").textContent =
@@ -495,9 +849,9 @@ function renderStatus(st) {
       <div class="stepline"><span class="t">${esc(s.t)}</span>
       <span class="tag ${esc(s.kind)}">${KIND_CN[s.kind] || s.kind}</span>
       <span class="x">${esc(s.text)}</span></div>`).join("")
-    : '<div class="mut">暂无</div>';
+    : '<div class="mut">-</div>';
   $("#events").innerHTML = st.events.length
-    ? st.events.map((e) => `<div>${esc(e)}</div>`).join("") : "<div>暂无</div>";
+    ? st.events.map((e) => `<div>${esc(e)}</div>`).join("") : "<div>-</div>";
 }
 
 let boxSig = "";   // 结构签名：只有框的增删/改名/报错等结构变化才重建 DOM
@@ -512,16 +866,17 @@ function renderBoxes(st) {
       <div class="boxcard" data-id="${b.id}">
         <div class="boxhead"><b>${esc(b.name)}</b>
           <span class="mut" data-dims>${b.rect ? b.rect[2] + "x" + b.rect[3] : "无画面"}${b.monitor ? " · 监控中" : ""}</span>
-          <button class="btn danger" data-del="${b.id}" style="padding:2px 8px">删</button></div>
+          <button class="btn danger btn-sm" data-del="${b.id}">删</button></div>
         ${b.has_shot
           ? `<img class="preview" data-box-id="${b.id}" data-frame="${b.frame || 0}"
+               alt="监视框「${esc(b.name)}」预览"
                src="/api/box/shot?id=${b.id}&t=${b.frame || 0}">`
-          : `<div class="preview" style="display:flex;align-items:center;justify-content:center;color:#aaa">暂无画面</div>`}
+          : `<div class="preview" style="display:flex;align-items:center;justify-content:center;color:var(--text-3)">暂无画面</div>`}
         ${b.error ? `<div class="err-text">${esc(b.error)}</div>` : ""}
         <div class="boxfoot">
           <label><input type="checkbox" data-mon="${b.id}" ${b.monitor ? "checked" : ""}>变化监控</label>
           <span class="mut" style="flex:1" data-lc>${b.last_change ? "上次触发 " + esc(b.last_change) : ""}</span>
-          <button class="btn" data-look="${b.id}" style="padding:3px 10px">看一眼</button>
+          <button class="btn btn-sm" data-look="${b.id}">看一眼</button>
         </div>
       </div>`).join("")
       || '<div class="hint" style="margin:0">还没有监视框。点上方按钮框选一块屏幕区域，或选择一个窗口。</div>';
@@ -560,8 +915,8 @@ function renderTools(st) {
     <div class="toolline">
       <input type="checkbox" data-tool="${esc(t.name)}" ${t.enabled ? "checked" : ""}>
       <div style="flex:1"><b>${esc(t.name)}</b><div class="d">${esc(t.desc)}</div>
-        ${t.prompt ? `<button class="btn" data-tp="${esc(t.name)}"
-          style="padding:1px 8px;font-size:12px;margin-top:3px">使用说明</button>
+        ${t.prompt ? `<button class="btn btn-sm" data-tp="${esc(t.name)}"
+          style="margin-top:var(--space-1)">使用说明</button>
         <div class="tprompt hidden">${esc(t.prompt)}</div>` : ""}
       </div>
     </div>`).join("");
@@ -599,13 +954,13 @@ $("#pick-window").addEventListener("click", async () => {
     $("#win-list").innerHTML = d.windows.map((w) =>
       `<div class="witem" data-hwnd="${w.hwnd}" title="${esc(w.title)}">${esc(w.title)}</div>`).join("")
       || '<div class="mut">没有找到合适的窗口</div>';
-    $("#win-modal").classList.remove("hidden");
+    openModal("win-modal");
   } catch (e) { toast(e.message); }
 });
 $("#win-list").addEventListener("click", async (e) => {
   const it = e.target.closest(".witem");
   if (!it) return;
-  $("#win-modal").classList.add("hidden");
+  closeModal("win-modal");
   try {
     await api("/api/box/add", { method: "POST",
       body: JSON.stringify({ mode: "window", hwnd: +it.dataset.hwnd }) });
@@ -659,15 +1014,23 @@ $("#sw-pause").addEventListener("click", async () => {
   refresh();
 });
 $("#btn-exit").addEventListener("click", () => {
-  $("#exit-modal").classList.remove("hidden");
+  openModal("exit-modal");
 });
 $("#exit-yes").addEventListener("click", async () => {
-  $("#exit-modal").classList.add("hidden");
+  closeModal("exit-modal");
   try { await api("/api/exit", { method: "POST", body: "{}" }); } catch (e) { /* 退出前可能来不及响应 */ }
   toast("已结束，程序正在退出…");
 });
 
 /* ---------------- chat ---------------- */
+/* 聊天空状态：说明文字 + 两个可直接发送的示例指令 */
+const CHAT_EMPTY = '<div class="placeholder">' +
+  '<div>和 AI 说话，它能看到所有监视框画面</div>' +
+  '<div class="placeholder-actions">' +
+  '<button class="btn btn-sm" data-eg="看看微信有没有新消息">看看微信有没有新消息</button>' +
+  '<button class="btn btn-sm" data-eg="查看记忆库里有哪些分类">查看记忆库里有哪些分类</button>' +
+  '</div></div>';
+
 function bubble(role, text) {
   const box = $("#chat-log");
   if (box.firstElementChild && box.firstElementChild.className === "placeholder")
@@ -700,6 +1063,13 @@ $("#send").addEventListener("click", send);
 $("#chat-text").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
 });
+/* 空状态示例指令：点击即把该指令填入输入框并走现有发送流程 */
+$("#chat-log").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-eg]");
+  if (!b) return;
+  $("#chat-text").value = b.dataset.eg;
+  send();
+});
 
 /* ---------------- 会话管理（聊天与画面监控共用当前会话） ---------------- */
 let CUR_SESS = "默认会话";
@@ -716,7 +1086,7 @@ async function loadHistory() {
   const d = await api("/api/history?session=" + encodeURIComponent(CUR_SESS));
   const box = $("#chat-log");
   if (!d.messages.length) {
-    box.innerHTML = '<div class="placeholder">和 AI 说话，它能看到所有监视框画面</div>';
+    box.innerHTML = CHAT_EMPTY;
     return;
   }
   box.innerHTML = "";
@@ -763,17 +1133,17 @@ $("#sess-del").addEventListener("click", async () => {
 
 $("#sess-ren").addEventListener("click", () => {
   $("#ren-name").value = CUR_SESS;
-  $("#ren-modal").classList.remove("hidden");
+  openModal("ren-modal");
   $("#ren-name").focus();
   $("#ren-name").select();
 });
 $("#ren-save").addEventListener("click", async () => {
   const name = $("#ren-name").value.trim();
-  if (!name || name === CUR_SESS) { $("#ren-modal").classList.add("hidden"); return; }
+  if (!name || name === CUR_SESS) { closeModal("ren-modal"); return; }
   try {
     await api("/api/session/rename", { method: "POST",
       body: JSON.stringify({ old: CUR_SESS, name }) });
-    $("#ren-modal").classList.add("hidden");
+    closeModal("ren-modal");
     await loadSessions();
     toast("已重命名为「" + name + "」");
   } catch (e) { toast(e.message); }
@@ -843,8 +1213,8 @@ async function loadMemTree() {
         html += `<div class="file" data-path="${esc(f.name + "/" + file.name)}">${esc(file.name)}</div>`;
     }
     for (const f of t.loose)
-      html += `<div class="file" data-path="${esc(f.name)}" style="padding-left:4px">${esc(f.name)}</div>`;
-    $("#mem-tree").innerHTML = html || '<div class="mut">（记忆库还是空的）</div>';
+      html += `<div class="file" data-path="${esc(f.name)}" style="padding-left:var(--space-1)">${esc(f.name)}</div>`;
+    $("#mem-tree").innerHTML = html || '<div class="mut">-</div>';
   } catch (e) { toast(e.message); }
 }
 $("#mem-tree").addEventListener("click", async (e) => {
@@ -910,7 +1280,7 @@ function modelModalOpen() {
   $("#m-key").type = "password";
   $("#m-show").checked = false;
   $("#m-cur").textContent = "当前密钥：" + (STATUS.api_key_masked || "（未设置）");
-  $("#model-modal").classList.remove("hidden");
+  openModal("model-modal");
 }
 $("#model-set").addEventListener("click", modelModalOpen);
 
@@ -940,7 +1310,7 @@ $("#m-save").addEventListener("click", async () => {
   try {
     await api("/api/config", { method: "POST",
       body: JSON.stringify(modelModalValues()) });
-    $("#model-modal").classList.add("hidden");
+    closeModal("model-modal");
     toast("模型设置已保存，立即生效");
   } catch (e) { toast(e.message); }
   refresh();
